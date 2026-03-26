@@ -1,13 +1,14 @@
 import { createAsyncThunk, createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
+import type { DateRangeParams } from '@/application/ports/flight-repository-port';
 import { container } from '@/dependencyInjection/container';
 import type { Flight } from '@/domain/entities/flight';
 import { flightShallowCompare } from '@/store/flight-shallow-compare';
 
 export const fetchActiveFlights = createAsyncThunk(
   'flights/fetchActive',
-  async () => {
-    return container.getActiveFlightsUseCase.execute();
+  async (dateRange?: DateRangeParams) => {
+    return container.getActiveFlightsUseCase.execute(dateRange);
   },
 );
 

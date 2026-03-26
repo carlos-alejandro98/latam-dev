@@ -1,4 +1,4 @@
-import type { FlightRepositoryPort } from "@/application/ports/flight-repository-port";
+import type { DateRangeParams, FlightRepositoryPort } from "@/application/ports/flight-repository-port";
 import type { Flight } from "@/domain/entities/flight";
 import { FlightError } from "@/domain/errors/flight-error";
 import type { FlightGantt, FlightGanttTask, GanttDateTime } from "@/domain/entities/flight-gantt";
@@ -164,17 +164,21 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
 
 export class FlightApiRepository implements FlightRepositoryPort {
   // PARCHE TEMPORAL: Usar fecha fija del 25/03/2026 mientras el servicio está inestable
-  // TODO: Remover este parche cuando el servicio se estabilice y volver a usar la fecha actual
+  // TODO: Remover estas constantes y el fallback cuando el servicio se estabilice
   // Formato requerido por el endpoint: ddMMyyyy
   private static readonly TEMP_STD_DATE_FROM = "25032026";
   private static readonly TEMP_STD_DATE_TO = "25032026";
 
-  async getActiveFlights() {
-    console.log(`[FlightApiRepository] Fetching active flights with stdDateFrom=${FlightApiRepository.TEMP_STD_DATE_FROM}, stdDateTo=${FlightApiRepository.TEMP_STD_DATE_TO}`);
+  async getActiveFlights(dateRange?: DateRangeParams) {
+    // Usar fechas del parametro o fallback al parche temporal
+    const stdDateFrom = dateRange?.stdDateFrom ?? FlightApiRepository.TEMP_STD_DATE_FROM;
+    const stdDateTo = dateRange?.stdDateTo ?? FlightApiRepository.TEMP_STD_DATE_TO;
+    
+    console.log(`[FlightApiRepository] Fetching active flights with stdDateFrom=${stdDateFrom}, stdDateTo=${stdDateTo}`);
     
     const flights = await flightsHttpGet<Flight[]>("/api/v1/tracking/active-flights-v2", {
-      stdDateFrom: FlightApiRepository.TEMP_STD_DATE_FROM,
-      stdDateTo: FlightApiRepository.TEMP_STD_DATE_TO,
+      stdDateFrom,
+      stdDateTo,
     });
     
     console.log(`[FlightApiRepository] Received ${flights?.length ?? 0} flights`);
