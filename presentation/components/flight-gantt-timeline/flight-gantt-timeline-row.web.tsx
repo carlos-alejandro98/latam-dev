@@ -148,31 +148,17 @@ const renderRangeBar = (
 
 const getRowBackground = (
   index: number,
-  estado: string,
+  isDelayed: boolean,
 ): Record<string, string | number> | null => {
-  // Fondo especial para tareas completadas o en progreso
-  if (estado === 'COMPLETED') {
-    return { backgroundColor: '#F0FDF4' }; // Verde muy claro
-  }
-  if (estado === 'IN_PROGRESS') {
-    return { backgroundColor: '#EEF2FF' }; // Azul muy claro
+  // Fondo rojo claro si el proceso tiene atraso en inicio o fin
+  if (isDelayed) {
+    return { backgroundColor: '#FEF2F2' }; // Rojo muy claro
   }
   if (index % 2 === 0) {
     return null;
   }
 
   return styles.rowAlternate;
-};
-
-// Status badge para mostrar el estado de la tarea
-const getStatusBadge = (estado: string): { label: string; color: string; bgColor: string } | null => {
-  if (estado === 'COMPLETED') {
-    return { label: 'Completado', color: '#166534', bgColor: '#DCFCE7' };
-  }
-  if (estado === 'IN_PROGRESS') {
-    return { label: 'En progreso', color: '#1E40AF', bgColor: '#DBEAFE' };
-  }
-  return null;
 };
 
 /**
@@ -263,14 +249,14 @@ export const FlightGanttTimelineRow = memo(
       );
     }, [rowData, isRealInProgress, shimmerGradId, xScale, realBarY, realStartMinute, realEndMinute]);
 
-    // Obtener badge de estado para tareas en progreso o completadas
-    const statusBadge = useMemo(() => getStatusBadge(rowData.task.estado), [rowData.task.estado]);
+    // Determinar si hay atraso en inicio o fin
+    const isDelayed = realStartOutOfRange || realEndOutOfRange;
 
     const rowStyle: Record<string, string | number> = useMemo(() => ({
       ...styles.row,
-      ...(getRowBackground(index, rowData.task.estado) ?? {}),
+      ...(getRowBackground(index, isDelayed) ?? {}),
       ...(hovered ? { backgroundColor: '#E7E8FD', cursor: 'pointer' } : {}),
-    }), [index, hovered, rowData.task.estado]);
+    }), [index, hovered, isDelayed]);
 
     const handleMouseEnter = useCallback(() => setHovered(true),  []);
     const handleMouseLeave = useCallback(() => setHovered(false), []);
@@ -286,25 +272,10 @@ export const FlightGanttTimelineRow = memo(
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
       >
-        <div style={{ ...styles.taskCell, ...styles.cellProcess, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ ...styles.taskCell, ...styles.cellProcess }}>
           <Text variant="label-sm" style={styles.taskNameText}>
             {rowData.task.taskName}
           </Text>
-          {statusBadge && (
-            <span
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                color: statusBadge.color,
-                backgroundColor: statusBadge.bgColor,
-                padding: '1px 6px',
-                borderRadius: 4,
-                alignSelf: 'flex-start',
-              }}
-            >
-              {statusBadge.label}
-            </span>
-          )}
         </div>
         {/* Start column: estimated (fixed) on top, real (live) below */}
         <div
