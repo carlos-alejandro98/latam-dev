@@ -3,6 +3,7 @@ import type { Flight } from "@/domain/entities/flight";
 import { FlightError } from "@/domain/errors/flight-error";
 import type { FlightGantt, FlightGanttTask, GanttDateTime } from "@/domain/entities/flight-gantt";
 import { flightsHttpGet, flightsHttpPost } from "@/infrastructure/http/flights-http-methods";
+import { getDefaultDateRange } from "@/shared/utils/date-utils";
 import axios from "axios";
 
 // Shape returned by the new /api/v1/turnarounds/flight/gantt endpoint
@@ -163,16 +164,16 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
 }
 
 export class FlightApiRepository implements FlightRepositoryPort {
-  // PARCHE TEMPORAL: Usar fecha fija del 25/03/2026 mientras el servicio está inestable
-  // TODO: Remover estas constantes y el fallback cuando el servicio se estabilice
-  // Formato requerido por el endpoint: ddMMyyyy
-  private static readonly TEMP_STD_DATE_FROM = "25032026";
-  private static readonly TEMP_STD_DATE_TO = "25032026";
-
+  /**
+   * Obtiene los vuelos activos para un rango de fechas.
+   * Si no se proporcionan fechas, usa un rango por defecto de 3 días antes y después de hoy.
+   * Formato requerido por el endpoint: ddMMyyyy (ej: 25032026 para 25/03/2026)
+   */
   async getActiveFlights(dateRange?: DateRangeParams) {
-    // Usar fechas del parametro o fallback al parche temporal
-    const stdDateFrom = dateRange?.stdDateFrom ?? FlightApiRepository.TEMP_STD_DATE_FROM;
-    const stdDateTo = dateRange?.stdDateTo ?? FlightApiRepository.TEMP_STD_DATE_TO;
+    // Usar fechas del parametro o calcular rango por defecto
+    const defaultRange = getDefaultDateRange();
+    const stdDateFrom = dateRange?.stdDateFrom ?? defaultRange.stdDateFrom;
+    const stdDateTo = dateRange?.stdDateTo ?? defaultRange.stdDateTo;
     
     console.log(`[FlightApiRepository] Fetching active flights with stdDateFrom=${stdDateFrom}, stdDateTo=${stdDateTo}`);
     
@@ -182,37 +183,19 @@ export class FlightApiRepository implements FlightRepositoryPort {
     });
     
     console.log(`[FlightApiRepository] Received ${flights?.length ?? 0} flights`);
-    if (flights && flights.length > 0) {
-      console.log(`[FlightApiRepository] First flight sample:`, JSON.stringify(flights[0], null, 2));
-    }
     
     return flights;
   }
 
   async getFlightGantt(flightId: string): Promise<FlightGantt> {
-    console.log(`[FlightApiRepository] Fetching gantt for flightId: ${flightId}, stdDateFrom=${FlightApiRepository.TEMP_STD_DATE_FROM}, stdDateTo=${FlightApiRepository.TEMP_STD_DATE_TO}`);
-    
     try {
       const raw = await flightsHttpGet<TurnaroundApiResponse>(
         "/api/v1/turnarounds/flight/gantt",
-        { 
-          flightId,
-          stdDateFrom: FlightApiRepository.TEMP_STD_DATE_FROM,
-          stdDateTo: FlightApiRepository.TEMP_STD_DATE_TO,
-        },
+        { flightId },
       );
-      
-      console.log(`[FlightApiRepository] Gantt received for flight ${flightId}:`, {
-        turnaroundId: raw?.turnaroundId,
-        flightNumber: raw?.flightNumber,
-        tasksCount: raw?.tasks?.length ?? 0,
-        ganttStarted: raw?.ganttStarted,
-      });
       
       return mapTurnaroundToFlightGantt(raw);
     } catch (error) {
-      console.log(`[FlightApiRepository] Error fetching gantt for flight ${flightId}:`, error);
-      
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new FlightError(
           `No turnaround gantt found for flight ${flightId}`,
