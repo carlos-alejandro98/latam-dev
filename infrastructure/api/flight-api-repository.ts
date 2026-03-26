@@ -165,13 +165,16 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
 export class FlightApiRepository implements FlightRepositoryPort {
   // PARCHE TEMPORAL: Usar fecha fija del 25/03/2026 mientras el servicio está inestable
   // TODO: Remover este parche cuando el servicio se estabilice y volver a usar la fecha actual
-  private static readonly TEMP_FIXED_DATE = "2026-03-25";
+  // Formato requerido por el endpoint: ddMMyyyy
+  private static readonly TEMP_STD_DATE_FROM = "25032026";
+  private static readonly TEMP_STD_DATE_TO = "25032026";
 
   async getActiveFlights() {
-    console.log(`[FlightApiRepository] Fetching active flights for date: ${FlightApiRepository.TEMP_FIXED_DATE}`);
+    console.log(`[FlightApiRepository] Fetching active flights with stdDateFrom=${FlightApiRepository.TEMP_STD_DATE_FROM}, stdDateTo=${FlightApiRepository.TEMP_STD_DATE_TO}`);
     
     const flights = await flightsHttpGet<Flight[]>("/api/v1/tracking/active-flights-v2", {
-      date: FlightApiRepository.TEMP_FIXED_DATE,
+      stdDateFrom: FlightApiRepository.TEMP_STD_DATE_FROM,
+      stdDateTo: FlightApiRepository.TEMP_STD_DATE_TO,
     });
     
     console.log(`[FlightApiRepository] Received ${flights?.length ?? 0} flights`);
@@ -183,14 +186,15 @@ export class FlightApiRepository implements FlightRepositoryPort {
   }
 
   async getFlightGantt(flightId: string): Promise<FlightGantt> {
-    console.log(`[FlightApiRepository] Fetching gantt for flightId: ${flightId}, date: ${FlightApiRepository.TEMP_FIXED_DATE}`);
+    console.log(`[FlightApiRepository] Fetching gantt for flightId: ${flightId}, stdDateFrom=${FlightApiRepository.TEMP_STD_DATE_FROM}, stdDateTo=${FlightApiRepository.TEMP_STD_DATE_TO}`);
     
     try {
       const raw = await flightsHttpGet<TurnaroundApiResponse>(
         "/api/v1/turnarounds/flight/gantt",
         { 
           flightId,
-          date: FlightApiRepository.TEMP_FIXED_DATE,
+          stdDateFrom: FlightApiRepository.TEMP_STD_DATE_FROM,
+          stdDateTo: FlightApiRepository.TEMP_STD_DATE_TO,
         },
       );
       
