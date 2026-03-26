@@ -124,6 +124,16 @@ export const HomeScreen = () => {
       const key = cacheKey(instanceId);
       const cached = taskCacheRef.current.get(key);
 
+      // Log para diagnóstico de estado de tarea
+      console.log('[handleRowClick] Task data:', {
+        taskName: rowData.task.taskName,
+        instanceId,
+        estado: rowData.task.estado,
+        inicioReal: rowData.task.inicioReal,
+        finReal: rowData.task.finReal,
+        realRange: rowData.realRange,
+      });
+
       if (cached) {
         // Re-opening a task that was already interacted with — restore full cached state
         setSelectedProcess(cached);
@@ -143,12 +153,22 @@ export const HomeScreen = () => {
           return calc === '--' ? '' : calc;
         };
 
+        // Determinar el estado basado en inicioReal/finReal si el backend no lo envía correctamente
+        let resolvedStatus = rowData.task.estado;
+        if (rowData.task.inicioReal && rowData.task.finReal) {
+          resolvedStatus = 'COMPLETED';
+        } else if (rowData.task.inicioReal && !rowData.task.finReal) {
+          resolvedStatus = 'IN_PROGRESS';
+        }
+
+        console.log('[handleRowClick] Resolved status:', resolvedStatus, 'Original:', rowData.task.estado);
+
         setSelectedProcess({
           name: rowData.task.taskName,
           startTime: resolveTime(realStart, calcStart),
           endTime: resolveTime(realEnd, calcEnd),
           taskInstanceId: instanceId,
-          taskStatus: rowData.task.estado,
+          taskStatus: resolvedStatus,
           // Store planned (calculated) times to detect delays at dispatch time
           plannedStartTime: calcStart === '--' ? undefined : calcStart,
           plannedEndTime: calcEnd === '--' ? undefined : calcEnd,
