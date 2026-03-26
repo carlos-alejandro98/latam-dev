@@ -163,18 +163,48 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
 }
 
 export class FlightApiRepository implements FlightRepositoryPort {
+  // PARCHE TEMPORAL: Usar fecha fija del 25/03/2026 mientras el servicio está inestable
+  // TODO: Remover este parche cuando el servicio se estabilice y volver a usar la fecha actual
+  private static readonly TEMP_FIXED_DATE = "2026-03-25";
+
   async getActiveFlights() {
-    return flightsHttpGet<Flight[]>("/api/v1/tracking/active-flights-v2");
+    console.log(`[FlightApiRepository] Fetching active flights for date: ${FlightApiRepository.TEMP_FIXED_DATE}`);
+    
+    const flights = await flightsHttpGet<Flight[]>("/api/v1/tracking/active-flights-v2", {
+      date: FlightApiRepository.TEMP_FIXED_DATE,
+    });
+    
+    console.log(`[FlightApiRepository] Received ${flights?.length ?? 0} flights`);
+    if (flights && flights.length > 0) {
+      console.log(`[FlightApiRepository] First flight sample:`, JSON.stringify(flights[0], null, 2));
+    }
+    
+    return flights;
   }
 
   async getFlightGantt(flightId: string): Promise<FlightGantt> {
+    console.log(`[FlightApiRepository] Fetching gantt for flightId: ${flightId}, date: ${FlightApiRepository.TEMP_FIXED_DATE}`);
+    
     try {
       const raw = await flightsHttpGet<TurnaroundApiResponse>(
         "/api/v1/turnarounds/flight/gantt",
-        { flightId },
+        { 
+          flightId,
+          date: FlightApiRepository.TEMP_FIXED_DATE,
+        },
       );
+      
+      console.log(`[FlightApiRepository] Gantt received for flight ${flightId}:`, {
+        turnaroundId: raw?.turnaroundId,
+        flightNumber: raw?.flightNumber,
+        tasksCount: raw?.tasks?.length ?? 0,
+        ganttStarted: raw?.ganttStarted,
+      });
+      
       return mapTurnaroundToFlightGantt(raw);
     } catch (error) {
+      console.log(`[FlightApiRepository] Error fetching gantt for flight ${flightId}:`, error);
+      
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         throw new FlightError(
           `No turnaround gantt found for flight ${flightId}`,
