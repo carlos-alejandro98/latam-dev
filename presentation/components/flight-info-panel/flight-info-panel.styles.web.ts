@@ -159,13 +159,15 @@ export const styles: Record<string, CSSProperties> = {
   estimatedTime: {
     display: 'flex',
     flexDirection: 'column',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
     gap: 4,
     padding: '10px 16px',
-    flex: '0 0 160px',
-    minWidth: 0,
+    flex: '0 0 auto',
+    minWidth: 150,
+    maxWidth: 200,
     boxSizing: 'border-box',
+    borderLeft: '1px solid #D9D9D9',
   },
   estimatedTimeCompact: {
     flexGrow: 1,

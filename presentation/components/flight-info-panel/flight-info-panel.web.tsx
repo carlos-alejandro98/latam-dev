@@ -91,38 +91,39 @@ const tempoStyles = `
 const WARNING_SECONDS = 5 * 60;
 
 /**
- * Parses stdDate (supports "dd/mm/yyyy" and "yyyy-mm-dd") + stdTime ("HH:mm")
- * and returns seconds remaining until STD from the device's current time.
- * Positive = STD is in the future (countdown). Negative = STD has passed (overdue).
+ * Computes seconds remaining until today's STD time.
+ *
+ * The countdown always uses TODAY's local date combined with the STD time
+ * (HH:mm from stdTime). This is intentional: the operator sees "time left
+ * until departure" relative to the current day — regardless of which date
+ * the flight record was created on.
+ *
+ * Positive  = STD is still in the future → black countdown, decreasing.
+ * Negative  = STD has passed today       → red, absolute value shown.
  */
 const computeSecondsToStd = (
-  stdDate: string | null,
+  _stdDate: string | null,  // kept for API compatibility, not used for date resolution
   stdTime: string | null,
   nowMs: number,
 ): number | null => {
-  if (!stdDate || !stdTime) return null;
-  const datePart = stdDate.split('T')[0]?.trim() ?? '';
+  if (!stdTime) return null;
   const [hStr, mStr] = stdTime.split(':');
   const h = Number(hStr);
   const m = Number(mStr);
   if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
 
-  let year: number, month: number, day: number;
-  if (datePart.includes('-')) {
-    // "yyyy-mm-dd"
-    const parts = datePart.split('-').map(Number);
-    year = parts[0]!; month = parts[1]!; day = parts[2]!;
-  } else if (datePart.includes('/')) {
-    // "dd/mm/yyyy"
-    const parts = datePart.split('/').map(Number);
-    day = parts[0]!; month = parts[1]!; year = parts[2]!;
-  } else {
-    return null;
-  }
+  // Always anchor to today's local date so the countdown is always meaningful.
+  const now = new Date(nowMs);
+  const stdMs = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    h,
+    m,
+    0,
+    0,
+  ).getTime();
 
-  if (!year || !month || !day) return null;
-
-  const stdMs = new Date(year, month - 1, day, h, m, 0, 0).getTime();
   return Math.round((stdMs - nowMs) / 1000);
 };
 
@@ -184,7 +185,7 @@ const TempoDisponivelLive = ({ stdDate, stdTime, allTasksCompleted }: TempoDispo
 
   if (displaySeconds === null) {
     return (
-      <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '0.05em', fontFamily: 'monospace, Arial', color: '#3a3a3a' }}>
+      <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'monospace, Arial', color: '#3a3a3a' }}>
         --:--:--
       </span>
     );
@@ -198,7 +199,7 @@ const TempoDisponivelLive = ({ stdDate, stdTime, allTasksCompleted }: TempoDispo
   return (
     <span
       className={isPulsing ? '_td-pulse' : undefined}
-      style={{ fontSize: 24, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'monospace, Arial', display: 'inline-flex', alignItems: 'center' }}
+      style={{ fontSize: 18, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'monospace, Arial', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}
     >
       {label.split('').map((char, i) => (
         <AnimatedChar key={i} char={char} color={color} />
