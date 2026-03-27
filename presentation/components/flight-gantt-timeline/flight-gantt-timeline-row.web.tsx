@@ -279,9 +279,15 @@ export const FlightGanttTimelineRow = memo(
       );
     }, [rowData, isRealInProgress, shimmerGradId, xScale, realBarY, realStartMinute, realEndMinute]);
 
-    // Determinar si hay atraso en inicio o fin - SOLO cuando la tarea está completada (tiene finReal)
+    // Determinar si hay atraso en inicio o fin.
+    // rowData.isDelayed viene del backend (task.estaRetrasada) y ya contempla
+    // todos los casos — incluyendo cuando el vuelo es de otro día o cuando los
+    // rangos calculados no están disponibles. La lógica local sirve como
+    // complemento para detectar atrasos en tiempo real (barra en progreso).
     const isCompleted = !!rowData.task.finReal;
-    const isDelayed = isCompleted && (realStartOutOfRange || realEndOutOfRange);
+    const isDelayed =
+      rowData.isDelayed ||
+      (isCompleted && (realStartOutOfRange || realEndOutOfRange));
 
     const rowStyle: Record<string, string | number> = useMemo(() => ({
       ...styles.row,
@@ -323,13 +329,13 @@ export const FlightGanttTimelineRow = memo(
             variant="label-xs"
             style={{
               color: realStart
-                ? realStartOutOfRange
-                  ? realStartEarly ? '#07605B' : '#C8001E'
+                ? (realStartOutOfRange || rowData.isDelayed) && !realStartEarly
+                  ? '#C8001E'
                   : '#07605B'
                 : '#b0b0b0',
               lineHeight: 1.2,
               marginTop: 2,
-              fontWeight: (realStartOutOfRange && !realStartEarly) ? 700 : 400,
+              fontWeight: (realStartOutOfRange || rowData.isDelayed) && !realStartEarly ? 700 : 400,
             }}
           >
             {realStart ?? '--'}
@@ -345,11 +351,11 @@ export const FlightGanttTimelineRow = memo(
             variant="label-xs"
             style={{
               color: realEnd
-                ? realEndOutOfRange ? '#C8001E' : '#07605B'
+                ? (realEndOutOfRange || rowData.isDelayed) ? '#C8001E' : '#07605B'
                 : '#b0b0b0',
               lineHeight: 1.2,
               marginTop: 2,
-              fontWeight: realEndOutOfRange ? 700 : 400,
+              fontWeight: (realEndOutOfRange || rowData.isDelayed) ? 700 : 400,
             }}
           >
             {realEnd ?? '--'}
