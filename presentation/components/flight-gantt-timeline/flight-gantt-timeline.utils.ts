@@ -395,7 +395,7 @@ export const buildTimelineRows = (
     rows.map((r) => ({
       taskId:            r.task.taskId,
       instanceId:        r.task.instanceId,
-      nombre:            r.task.nombre,
+      nombre:            r.task.taskName,
       grupo:             r.task.grupoFuncional,
       estado:            r.estado,
       retrasada:         r.isDelayed,
