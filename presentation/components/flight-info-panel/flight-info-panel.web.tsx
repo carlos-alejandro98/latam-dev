@@ -268,23 +268,28 @@ export const FlightInfoPanel = ({
     <Box style={styles.panelContainer}>
       <style>{tempoStyles}</style>
       <Box ref={wrapperRef} style={styles.mainContent}>
+        {/* ── Top header bar ─────────────────────────────────────────────── */}
         <Box style={styles.wrapperSupScroll}>
-          <Box style={{ ...styles.wrapperSup, ...(isCompact ? styles.wrapperSupCompact : {}) }}>
+          {/* Row 1: ARRIVAL | PREFIXO | DEPARTURE | TEMPO DISPONÍVEL */}
+          <Box style={styles.wrapperSup}>
             {/* ARRIVAL */}
-            <Box style={{ ...styles.column, ...(isCompact ? styles.columnCompact : {}) }}>
+            <Box style={styles.column}>
               <Box style={styles.headerInfo}>
                 <Box style={styles.topInfoLeft}>
-                  <Text variant="label-xs" color="tertiary">
-                    {viewModel.arrival.title}
-                  </Text>
+                  <Text variant="label-xs" color="tertiary">{viewModel.arrival.title}</Text>
                   <Text variant="label-md">{viewModel.arrival.flightNumber}</Text>
                   <Tag variant="base" type="indigo" label={viewModel.arrival.dateLabel} />
+                  {viewModel.arrival.status ? (
+                    <StatusTag
+                      variant="feedback"
+                      type={viewModel.arrival.status.type}
+                      label={viewModel.arrival.status.label}
+                    />
+                  ) : null}
                 </Box>
                 <Box style={styles.topInfoRight}>
-                  <SeatEconomy size={20} color={colors.textTertiary} />
-                  <Text variant="label-xs" color="tertiary">
-                    {viewModel.arrival.passengerCount}
-                  </Text>
+                  <SeatEconomy size={18} color={colors.textTertiary} />
+                  <Text variant="label-xs" color="tertiary">{viewModel.arrival.passengerCount}</Text>
                   <Text variant="label-sm">{viewModel.arrival.station}</Text>
                 </Box>
               </Box>
@@ -296,29 +301,16 @@ export const FlightInfoPanel = ({
                 </Box>
                 <Box style={styles.bottomInfoRight}>
                   <Box style={styles.verticalDivider} />
-                  {viewModel.arrival.status ? (
-                    <Box style={styles.tagBox}>
-                      <StatusTag
-                        variant="feedback"
-                        type={viewModel.arrival.status.type}
-                        label={viewModel.arrival.status.label}
-                      />
-                    </Box>
-                  ) : null}
                   <Box style={styles.pushInBox}>
-                    <Text variant="label-xs" color="secondary">
-                      {viewModel.arrival.actionTime.label}
-                    </Text>
-                    <Text variant="label-sm">
-                      {viewModel.arrival.actionTime.value}
-                    </Text>
+                    <Text variant="label-xs" color="secondary">{viewModel.arrival.actionTime.label}</Text>
+                    <Text variant="label-sm">{viewModel.arrival.actionTime.value}</Text>
                   </Box>
                 </Box>
               </Box>
             </Box>
 
-            {/* PREFIXO / FLOTA */}
-            <Box style={{ ...styles.midBox, ...(isCompact ? styles.midBoxCompact : {}) }}>
+            {/* PREFIXO / FLOTA — center gray separator */}
+            <Box style={styles.midBox}>
               <Text variant="label-xs" color="secondary">PREFIXO</Text>
               <Text variant="label-sm">{viewModel.summary.prefix}</Text>
               <Text variant="label-xs" color="secondary">FLOTA</Text>
@@ -326,20 +318,16 @@ export const FlightInfoPanel = ({
             </Box>
 
             {/* DEPARTURE */}
-            <Box style={{ ...styles.columnR, ...(isCompact ? styles.columnCompact : {}) }}>
+            <Box style={styles.columnR}>
               <Box style={styles.headerInfo}>
                 <Box style={styles.topInfoLeft}>
-                  <Text variant="label-xs" color="tertiary">
-                    {viewModel.departure.title}
-                  </Text>
+                  <Text variant="label-xs" color="tertiary">{viewModel.departure.title}</Text>
                   <Text variant="label-md">{viewModel.departure.flightNumber}</Text>
                   <Tag variant="base" type="indigo" label={viewModel.departure.dateLabel} />
                 </Box>
                 <Box style={styles.topInfoRight}>
-                  <SeatEconomy size={20} color={colors.textTertiary} />
-                  <Text variant="label-xs" color="tertiary">
-                    {viewModel.departure.passengerCount}
-                  </Text>
+                  <SeatEconomy size={18} color={colors.textTertiary} />
+                  <Text variant="label-xs" color="tertiary">{viewModel.departure.passengerCount}</Text>
                   <Text variant="label-sm">{viewModel.departure.station}</Text>
                 </Box>
               </Box>
@@ -352,28 +340,65 @@ export const FlightInfoPanel = ({
                 <Box style={styles.bottomInfoRight}>
                   <Box style={styles.verticalDivider} />
                   <Box style={styles.pushInBox}>
-                    <Text variant="label-xs" color="secondary">
-                      {viewModel.departure.actionTime.label}
-                    </Text>
-                    <Text variant="label-sm">
-                      {viewModel.departure.actionTime.value}
-                    </Text>
+                    <Text variant="label-xs" color="secondary">{viewModel.departure.actionTime.label}</Text>
+                    <Text variant="label-sm">{viewModel.departure.actionTime.value}</Text>
                   </Box>
                 </Box>
               </Box>
             </Box>
 
             {/* TEMPO DISPONÍVEL — live hh:mm:ss countdown */}
-            <Box style={{ ...styles.estimatedTime, ...(isCompact ? styles.estimatedTimeCompact : {}) }}>
+            <Box style={styles.estimatedTime}>
               <Text variant="label-xs" color="secondary">TEMPO DISPONÍVEL</Text>
               <TempoDisponivelLive
                 stdDate={viewModel.summary.stdDate}
                 stdTime={viewModel.summary.stdTime}
                 allTasksCompleted={viewModel.summary.allTasksCompleted}
               />
+              <Text variant="label-xs" color="secondary" style={{ marginTop: 2 }}>
+                {viewModel.summary.mtdLabel}
+              </Text>
+            </Box>
+          </Box>
+
+          {/* Row 2: Gray sub-bar — PNAE / Pax CNX / Bags CNX + route type + Tempo Plan */}
+          <Box style={styles.subBar}>
+            <Box style={styles.subBarLeft}>
+              <Text variant="label-xs" color="secondary">PNAE: <Text variant="label-xs">{viewModel.subBar.pnaeArrival}</Text></Text>
+              <Box style={styles.subBarDivider} />
+              <Text variant="label-xs" color="secondary">Pax CNX: <Text variant="label-xs">{viewModel.subBar.paxCnxArrival}</Text></Text>
+              <Box style={styles.subBarDivider} />
+              <Text variant="label-xs" color="secondary">Bags CNX: <Text variant="label-xs">{viewModel.subBar.bagsCnxArrival}</Text></Text>
+            </Box>
+            {viewModel.subBar.routeType ? (
+              <Box style={styles.subBarCenter}>
+                <Box style={styles.routeTypeBadge}>
+                  <Text variant="label-xs" style={{ color: '#3a3a3a', fontWeight: 600 }}>
+                    {viewModel.subBar.routeType}
+                  </Text>
+                </Box>
+              </Box>
+            ) : null}
+            <Box style={styles.subBarRight}>
+              <Text variant="label-xs" color="secondary">PNAE: <Text variant="label-xs">{viewModel.subBar.pnaeDeparture}</Text></Text>
+              <Box style={styles.subBarDivider} />
+              <Text variant="label-xs" color="secondary">Pax CNX: <Text variant="label-xs">{viewModel.subBar.paxCnxDeparture}</Text></Text>
+              <Box style={styles.subBarDivider} />
+              <Text variant="label-xs" color="secondary">Bags CNX: <Text variant="label-xs">{viewModel.subBar.bagsCnxDeparture}</Text></Text>
+              {viewModel.subBar.tempoPlan ? (
+                <>
+                  <Box style={styles.subBarDivider} />
+                  <Box style={styles.tempoPlanBadge}>
+                    <Text variant="label-xs" style={{ color: '#3a3a3a' }}>
+                      Tempo Plan: {viewModel.subBar.tempoPlan}
+                    </Text>
+                  </Box>
+                </>
+              ) : null}
             </Box>
           </Box>
         </Box>
+
         <FlightGanttTimeline
           staTime={viewModel.timeline.staTime}
           stdDate={viewModel.timeline.stdDate}

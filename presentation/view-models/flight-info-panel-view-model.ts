@@ -76,10 +76,22 @@ export interface FlightInfoPanelTimelineViewModel {
   tasks: FlightGanttTask[];
 }
 
+export interface FlightInfoPanelSubBarViewModel {
+  pnaeArrival: string;
+  paxCnxArrival: string;
+  bagsCnxArrival: string;
+  pnaeDeparture: string;
+  paxCnxDeparture: string;
+  bagsCnxDeparture: string;
+  routeType: string | null; // e.g. "DOM - INTER"
+  tempoPlan: string | null; // e.g. "1:05"
+}
+
 export interface FlightInfoPanelViewModel {
   arrival: FlightInfoPanelSideViewModel;
   departure: FlightInfoPanelSideViewModel;
   summary: FlightInfoPanelSummaryViewModel;
+  subBar: FlightInfoPanelSubBarViewModel;
   timeline: FlightInfoPanelTimelineViewModel;
   events: FlightInfoPanelEventsViewModel;
 }
@@ -384,6 +396,16 @@ export const createFlightInfoPanelViewModel = (
             Boolean(t.finReal) ||
             t.estado.toUpperCase().trim() === 'COMPLETED',
         ),
+    },
+    subBar: {
+      pnaeArrival: formatCount(flight.wchrArrival),
+      paxCnxArrival: formatCount(flight.paxCnxArrival),
+      bagsCnxArrival: formatCount(flight.bagsCnxArrival),
+      pnaeDeparture: formatCount(flight.wchrDeparture),
+      paxCnxDeparture: formatCount(flight.paxCnxDeparture),
+      bagsCnxDeparture: formatCount(flight.bagsCnxDeparture),
+      routeType: ganttFlight?.tatType ?? flight.tatType ?? null,
+      tempoPlan: formatMinutesToTime(tatMinutes),
     },
     timeline: {
       staTime: flight.staTime,
