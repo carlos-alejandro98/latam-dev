@@ -28,9 +28,10 @@ export const styles: Record<string, CSSProperties> = {
   wrapperSup: {
     display: 'flex',
     flexDirection: 'row',
-    // flex-wrap is the key: cards sit side-by-side when there is enough space
-    // and stack vertically when the container is too narrow — no JS needed.
-    flexWrap: 'wrap',
+    // No wrap — cards always try to sit in a single row.
+    // The CSS class "hcc-header-row" (injected via <style>) switches to
+    // flex-direction: column at 990px viewport width.
+    flexWrap: 'nowrap',
     alignItems: 'stretch',
     border: 'solid 1px #D9D9D9',
     borderRadius: 8,
@@ -38,32 +39,29 @@ export const styles: Record<string, CSSProperties> = {
     borderBottomRightRadius: 0,
     backgroundColor: '#ffffff',
     boxSizing: 'border-box',
+    overflow: 'hidden',
   },
   column: {
     display: 'flex',
     flexDirection: 'column',
     padding: '10px 12px',
-    // flex-grow so both cards share remaining space equally; minWidth
-    // triggers the wrap when each card cannot fit its minimum content.
-    flex: '1 1 280px',
-    minWidth: 280,
+    flex: '1 1 0',
+    minWidth: 0,
     borderLeft: '4px solid #0D12AB',
     borderRight: '1px solid #D9D9D9',
-    borderBottom: '1px solid #D9D9D9',
     boxSizing: 'border-box',
-    gap: 8,
+    gap: 6,
   },
   columnR: {
     display: 'flex',
     flexDirection: 'column',
     padding: '10px 12px',
-    flex: '1 1 280px',
-    minWidth: 280,
+    flex: '1 1 0',
+    minWidth: 0,
     borderLeft: '4px solid #0D12AB',
     borderRight: '1px solid #D9D9D9',
-    borderBottom: '1px solid #D9D9D9',
     boxSizing: 'border-box',
-    gap: 8,
+    gap: 6,
   },
   headerInfo: {
     display: 'flex',
@@ -124,20 +122,18 @@ export const styles: Record<string, CSSProperties> = {
     backgroundColor: '#d9d9d9',
   },
   midBox: {
-    padding: '10px 16px',
+    padding: '10px 14px',
     backgroundColor: '#F2F2F2',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    // Never shrinks below 100px; never grows past content — stays as a
-    // compact center separator between the two flight cards.
-    flex: '0 0 110px',
-    minWidth: 100,
+    flex: '0 0 auto',
+    flexShrink: 0,
     borderRight: '1px solid #D9D9D9',
-    borderBottom: '1px solid #D9D9D9',
     boxSizing: 'border-box',
+    whiteSpace: 'nowrap',
   },
   estimatedTime: {
     display: 'flex',
@@ -145,14 +141,11 @@ export const styles: Record<string, CSSProperties> = {
     alignItems: 'flex-start',
     justifyContent: 'center',
     gap: 2,
-    padding: '10px 16px',
-    // Fixed width on wide screens; expands to full row when cards wrap.
-    flex: '0 0 170px',
-    minWidth: 150,
-    boxSizing: 'border-box',
-    borderLeft: '1px solid #D9D9D9',
-    borderBottom: '1px solid #D9D9D9',
+    padding: '10px 14px',
+    flex: '0 0 auto',
     flexShrink: 0,
+    boxSizing: 'border-box',
+    whiteSpace: 'nowrap',
   },
   subBar: {
     display: 'flex',

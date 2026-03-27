@@ -85,6 +85,31 @@ const tempoStyles = `
 ._td-pulse {
   animation: _tdPulse 1.6s ease-in-out infinite;
 }
+
+/* Header row: single line above 990px, stacked below */
+.hcc-header-row {
+  flex-direction: row !important;
+}
+@media (max-width: 990px) {
+  .hcc-header-row {
+    flex-direction: column !important;
+  }
+  .hcc-header-row .hcc-card {
+    border-right: none !important;
+    border-bottom: 1px solid #D9D9D9;
+  }
+  .hcc-header-row .hcc-midbox {
+    flex-direction: row !important;
+    gap: 12px !important;
+    border-right: none !important;
+    border-bottom: 1px solid #D9D9D9;
+    width: 100%;
+  }
+  .hcc-header-row .hcc-tempo {
+    border-bottom: 1px solid #D9D9D9;
+    width: 100%;
+  }
+}
 `;
 
 const WARNING_SECONDS = 5 * 60;
@@ -255,10 +280,10 @@ export const FlightInfoPanel = ({
         {/* ── Top header bar ─────────────────────────────────────────────── */}
         <Box style={styles.wrapperSupScroll}>
           {/* Row 1: ARRIVAL | PREFIXO | DEPARTURE | TEMPO DISPONÍVEL */}
-          {/* flex-wrap lets cards stack naturally when there is not enough horizontal space */}
-          <Box style={styles.wrapperSup}>
+          {/* Single row above 990px; stacks vertically below via CSS @media */}
+          <Box className="hcc-header-row" style={styles.wrapperSup}>
             {/* ARRIVAL */}
-            <Box style={styles.column}>
+            <Box className="hcc-card" style={styles.column}>
               <Box style={styles.headerInfo}>
                 <Box style={styles.topInfoLeft}>
                   <Text variant="label-xs" color="tertiary">{viewModel.arrival.title}</Text>
@@ -295,7 +320,7 @@ export const FlightInfoPanel = ({
             </Box>
 
             {/* PREFIXO / FLOTA — center gray separator */}
-            <Box style={styles.midBox}>
+            <Box className="hcc-midbox" style={styles.midBox}>
               <Text variant="label-xs" color="secondary">PREFIXO</Text>
               <Text variant="label-sm">{viewModel.summary.prefix}</Text>
               <Text variant="label-xs" color="secondary">FLOTA</Text>
@@ -303,7 +328,7 @@ export const FlightInfoPanel = ({
             </Box>
 
             {/* DEPARTURE */}
-            <Box style={styles.columnR}>
+            <Box className="hcc-card" style={styles.columnR}>
               <Box style={styles.headerInfo}>
                 <Box style={styles.topInfoLeft}>
                   <Text variant="label-xs" color="tertiary">{viewModel.departure.title}</Text>
@@ -333,7 +358,7 @@ export const FlightInfoPanel = ({
             </Box>
 
             {/* TEMPO DISPONÍVEL — live hh:mm:ss countdown */}
-            <Box style={styles.estimatedTime}>
+            <Box className="hcc-tempo" style={styles.estimatedTime}>
               <Text variant="label-xs" color="secondary">TEMPO DISPONÍVEL</Text>
               <TempoDisponivelLive
                 stdDate={viewModel.summary.stdDate}
