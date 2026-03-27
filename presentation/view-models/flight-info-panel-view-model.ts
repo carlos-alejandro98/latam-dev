@@ -43,6 +43,12 @@ export interface FlightInfoPanelSummaryViewModel {
   availableTimeDelayed: boolean;
   mtdLabel: string;
   mtdTone: FlightMtdTone;
+  /** STD date string (e.g. "2026-03-27") — used to drive the live hh:mm:ss countdown */
+  stdDate: string | null;
+  /** STD time string (e.g. "18:15") — used to drive the live hh:mm:ss countdown */
+  stdTime: string | null;
+  /** True when every gantt task has a real finish time — stops the countdown */
+  allTasksCompleted: boolean;
 }
 
 export interface FlightInfoPanelEventItemViewModel {
@@ -369,6 +375,15 @@ export const createFlightInfoPanelViewModel = (
       availableTimeDelayed: availableTime.isDelayed,
       mtdLabel: mtd.label,
       mtdTone: mtd.tone,
+      stdDate: flight.stdDate ?? null,
+      stdTime: flight.stdTime ?? null,
+      allTasksCompleted:
+        timelineTasks.length > 0 &&
+        timelineTasks.every(
+          (t) =>
+            Boolean(t.finReal) ||
+            t.estado.toUpperCase().trim() === 'COMPLETED',
+        ),
     },
     timeline: {
       staTime: flight.staTime,

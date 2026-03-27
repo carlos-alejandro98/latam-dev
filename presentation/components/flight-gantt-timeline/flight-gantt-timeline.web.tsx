@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { FlightGanttTask } from '@/domain/entities/flight-gantt';
 import { Text } from '@/presentation/components/design-system';
-import { useMinuteTimestamp } from '@/presentation/hooks/use-minute-timestamp';
+import { useSecondTimestamp } from '@/presentation/hooks/use-second-timestamp';
 
 import { FlightGanttTimelineAxis } from './flight-gantt-timeline-axis';
 import { FlightGanttTimelineRow } from './flight-gantt-timeline-row';
@@ -122,7 +122,8 @@ export const FlightGanttTimeline = ({
   const [zoomLevelIndex, setZoomLevelIndex] = useState(
     DEFAULT_ZOOM_LEVEL_INDEX,
   );
-  const nowTimestamp = useMinuteTimestamp();
+  // Use second-level precision so the "now" bar advances smoothly in real time.
+  const nowTimestamp = useSecondTimestamp();
   const [verticalScrollMetrics, setVerticalScrollMetrics] =
     useState<VerticalScrollMetrics>({
       clientHeight: 0,

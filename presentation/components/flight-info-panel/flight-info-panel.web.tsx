@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { FlightRemoteBoarding } from '@hangar/react-icons/core/latam/Flight/FlightRemoteBoarding';
@@ -12,6 +12,8 @@ import {
   Text,
 } from '@/presentation/components/design-system';
 import { FlightInfoEventsPanel } from './flight-info-events-panel';
+
+import { useSecondTimestamp } from '@/presentation/hooks/use-second-timestamp';
 
 import type { FlightInfoPanelProps } from './flight-info-panel.types';
 import { styles } from './flight-info-panel.styles.web';
@@ -207,6 +209,139 @@ const StatusTag = styled(Tag)`
   }
 `;
 
+// ─── Animated digit flip ────────────────────────────────────────────────────
+const digitFlipStyle = `
+@keyframes digitFlipIn {
+  0%   { transform: translateY(-40%); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+@keyframes tempoPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+.digit-flip {
+  display: inline-block;
+  animation: digitFlipIn 0.18s ease-out;
+}
+.tempo-pulse {
+  animation: tempoPulse 1.2s ease-in-out infinite;
+}
+`;
+
+const WARNING_SECONDS = 5 * 60; // pulse when ≤ 5 min remaining
+
+/**
+ * Computes seconds remaining until STD from the current wall-clock.
+ * Returns null when STD cannot be parsed.
+ */
+const computeSecondsToStd = (
+  stdDate: string | null,
+  stdTime: string | null,
+  nowMs: number,
+): number | null => {
+  if (!stdDate || !stdTime) return null;
+  const datePart = stdDate.split('T')[0] ?? '';
+  const [hStr, mStr] = stdTime.split(':');
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+
+  let year: number, month: number, day: number;
+  if (datePart.includes('-')) {
+    const [y, mo, d] = datePart.split('-').map(Number);
+    year = y; month = mo; day = d;
+  } else if (datePart.includes('/')) {
+    const [d, mo, y] = datePart.split('/').map(Number);
+    year = y; month = mo; day = d;
+  } else {
+    return null;
+  }
+
+  const stdMs = new Date(year, month - 1, day, h, m, 0, 0).getTime();
+  return Math.round((stdMs - nowMs) / 1000);
+};
+
+const formatHHMMSS = (totalSeconds: number): string => {
+  const abs = Math.abs(totalSeconds);
+  const hh = Math.floor(abs / 3600);
+  const mm = Math.floor((abs % 3600) / 60);
+  const ss = abs % 60;
+  const sign = totalSeconds < 0 ? '-' : '';
+  return `${sign}${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+};
+
+/** Renders one "HH:MM:SS" digit group that flips whenever the value changes. */
+const AnimatedClock = ({ value, isRed, isPulsing }: { value: string; isRed: boolean; isPulsing: boolean }) => {
+  const [displayValue, setDisplayValue] = useState(value);
+  const [key, setKey] = useState(0);
+  const prevRef = useRef(value);
+
+  useEffect(() => {
+    if (value !== prevRef.current) {
+      prevRef.current = value;
+      setKey((k) => k + 1);
+      setDisplayValue(value);
+    }
+  }, [value]);
+
+  return (
+    <span
+      key={key}
+      className={`digit-flip${isPulsing ? ' tempo-pulse' : ''}`}
+      style={{
+        fontSize: 26,
+        fontWeight: 700,
+        fontVariantNumeric: 'tabular-nums',
+        letterSpacing: '0.04em',
+        color: isRed ? '#C8001E' : 'inherit',
+        fontFamily: 'monospace, Arial',
+      }}
+    >
+      {displayValue}
+    </span>
+  );
+};
+
+type TempoDisponivel = {
+  stdDate: string | null;
+  stdTime: string | null;
+  allTasksCompleted: boolean;
+};
+
+const TempoDisponivelLive = ({ stdDate, stdTime, allTasksCompleted }: TempoDisponivel) => {
+  const nowMs = useSecondTimestamp();
+
+  const seconds = useMemo(
+    () => computeSecondsToStd(stdDate, stdTime, nowMs),
+    [stdDate, stdTime, nowMs],
+  );
+
+  // Freeze the display once all tasks are completed
+  const [frozenDisplay, setFrozenDisplay] = useState<string | null>(null);
+  useEffect(() => {
+    if (allTasksCompleted && frozenDisplay === null && seconds !== null) {
+      setFrozenDisplay(formatHHMMSS(seconds));
+    }
+    if (!allTasksCompleted) {
+      setFrozenDisplay(null);
+    }
+  }, [allTasksCompleted, seconds, frozenDisplay]);
+
+  if (seconds === null) {
+    return (
+      <span style={{ fontSize: 22, fontWeight: 700, color: 'inherit', fontFamily: 'monospace' }}>
+        --:--:--
+      </span>
+    );
+  }
+
+  const display = frozenDisplay ?? formatHHMMSS(seconds);
+  const isRed = seconds < 0;
+  const isPulsing = !allTasksCompleted && seconds >= 0 && seconds <= WARNING_SECONDS;
+
+  return <AnimatedClock value={display} isRed={isRed} isPulsing={isPulsing} />;
+};
+
 export const FlightInfoPanel = ({
   viewModel,
   loading,
@@ -265,6 +400,8 @@ export const FlightInfoPanel = ({
 
   return (
     <Box style={styles.panelContainer}>
+      {/* Inject flip + pulse keyframes once per panel mount */}
+      <style>{digitFlipStyle}</style>
       <Box ref={wrapperRef} style={styles.mainContent}>
         <Box style={styles.wrapperSupScroll}>
           <FlightCardsRow $compact={isCompact}>
@@ -361,17 +498,14 @@ export const FlightInfoPanel = ({
               </CardBottomRow>
             </DepartureCard>
 
-            {/* TEMPO DISPONÍVEL box */}
+            {/* TEMPO DISPONÍVEL — live hh:mm:ss countdown to STD */}
             <TempoBox $compact={isCompact}>
               <Text variant="label-xs" color="secondary">TEMPO DISPONÍVEL</Text>
-              <Text
-                variant="heading-md"
-                style={{
-                  color: viewModel.summary.availableTimeDelayed ? '#C8001E' : colors.textPrimary,
-                }}
-              >
-                {viewModel.summary.availableTime}
-              </Text>
+              <TempoDisponivelLive
+                stdDate={viewModel.summary.stdDate}
+                stdTime={viewModel.summary.stdTime}
+                allTasksCompleted={viewModel.summary.allTasksCompleted}
+              />
             </TempoBox>
           </FlightCardsRow>
         </Box>
