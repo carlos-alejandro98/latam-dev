@@ -23,148 +23,7 @@ import { styles } from './flight-info-panel.styles.web';
 // We trigger compact when mainContent < 1100px so that even one open panel causes stacking.
 const COMPACT_BREAKPOINT = 998;
 
-// --- Styled components for the flight header row ---
-
-const FlightCardsRow = styled.div<{ $compact: boolean }>`
-  display: flex;
-  flex-direction: ${({ $compact }) => ($compact ? 'column' : 'row')};
-  align-items: stretch;
-  border: 1px solid #d9d9d9;
-  border-radius: 8px 8px 0 0;
-  background: #fff;
-  width: 100%;
-  box-sizing: border-box;
-  /* Suaviza el reflow cuando los hijos cambian de tamaño */
-  transition: all 0.3s ease;
-`;
-
-/* Shared base for both flight cards */
-const FlightCardBase = styled.div<{ $compact: boolean }>`
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 8px 12px;
-  gap: 6px;
-  flex: 1 1 0;
-  min-width: 0;
-  border-left: 4px solid #0d12ab;
-  border-right: 1px solid #d9d9d9;
-  border-bottom: ${({ $compact }) => ($compact ? '1px solid #d9d9d9' : 'none')};
-  box-sizing: border-box;
-  transition: flex 0.3s ease, border 0.3s ease, opacity 0.25s ease;
-
-  /* Force the date Tag to be a compact inline pill — never wrap or overflow */
-  [data-tag],
-  span[class*="Tag"],
-  div[class*="Tag"] {
-    white-space: nowrap;
-    flex-shrink: 0;
-    font-size: 11px !important;
-    line-height: 1.4 !important;
-    height: auto !important;
-    min-height: unset !important;
-  }
-`;
-
-const SavingOverlay = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 16px;
-  background: #f0f4ff;
-  border-bottom: 1px solid #d9d9d9;
-  font-style: italic;
-`;
-
-/* ARRIVAL — independent card div */
-const ArrivalCard = styled(FlightCardBase)``;
-
-/* DEPARTURE — independent card div */
-const DepartureCard = styled(FlightCardBase)``;
-
-const PrefixoBox = styled.div<{ $compact: boolean }>`
-  display: flex;
-  flex-direction: ${({ $compact }) => ($compact ? 'row' : 'column')};
-  align-items: center;
-  justify-content: center;
-  gap: ${({ $compact }) => ($compact ? '16px' : '2px')};
-  padding: 8px 14px;
-  background: #f2f2f2;
-  flex: ${({ $compact }) => ($compact ? '1 1 auto' : '0 0 100px')};
-  border-right: 1px solid #d9d9d9;
-  border-bottom: ${({ $compact }) => ($compact ? '1px solid #d9d9d9' : 'none')};
-  box-sizing: border-box;
-  white-space: nowrap;
-  transition: flex 0.3s ease, flex-direction 0.3s ease, border 0.3s ease;
-`;
-
-/* TEMPO DISPONÍVEL — fixed width in row mode, fills width in compact */
-const TempoBox = styled.div<{ $compact: boolean }>`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 8px 16px;
-  flex: ${({ $compact }) => ($compact ? '1 1 auto' : '0 0 160px')};
-  min-width: 0;
-  box-sizing: border-box;
-  transition: flex 0.3s ease;
-`;
-
-/* Top row inside a card: label+flight+date on left, pax+station on right */
-const CardHeaderRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-`;
-
-const CardHeaderLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-`;
-
-const CardHeaderRight = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  white-space: nowrap;
-`;
-
-/* Bottom row: info items on left, divider+tag+time on right */
-const CardBottomRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px;
-`;
-
-const CardBottomLeft = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 10px;
-  flex-shrink: 1;
-  min-width: 0;
-  flex-wrap: nowrap;
-`;
-
-const CardBottomRight = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  gap: 8px;
-  flex-shrink: 0;
-`;
+// --- Styled components ---
 
 type PanelColors = {
   borderPrimary: string;
@@ -209,31 +68,28 @@ const StatusTag = styled(Tag)`
   }
 `;
 
-// ─── Animated digit flip ────────────────────────────────────────────────────
-const digitFlipStyle = `
-@keyframes digitFlipIn {
-  0%   { transform: translateY(-40%); opacity: 0; }
-  100% { transform: translateY(0);    opacity: 1; }
+// ─── Tempo Disponível — animated countdown ───────────────────────────────────
+const tempoStyles = `
+@keyframes _tdSlideIn {
+  from { transform: translateY(-6px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
-@keyframes tempoPulse {
+@keyframes _tdPulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.45; }
+  50%       { opacity: 0.5; }
 }
-.digit-flip {
+._td-digit {
   display: inline-block;
-  animation: digitFlipIn 0.18s ease-out;
+  animation: _tdSlideIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
 }
-.tempo-pulse {
-  animation: tempoPulse 1.2s ease-in-out infinite;
+._td-pulse {
+  animation: _tdPulse 1.4s ease-in-out infinite;
 }
 `;
 
-const WARNING_SECONDS = 5 * 60; // pulse when ≤ 5 min remaining
+const WARNING_SECONDS = 5 * 60;
 
-/**
- * Computes seconds remaining until STD from the current wall-clock.
- * Returns null when STD cannot be parsed.
- */
 const computeSecondsToStd = (
   stdDate: string | null,
   stdTime: string | null,
@@ -248,16 +104,15 @@ const computeSecondsToStd = (
 
   let year: number, month: number, day: number;
   if (datePart.includes('-')) {
-    const [y, mo, d] = datePart.split('-').map(Number);
-    year = y; month = mo; day = d;
+    [year, month, day] = datePart.split('-').map(Number) as [number, number, number];
   } else if (datePart.includes('/')) {
-    const [d, mo, y] = datePart.split('/').map(Number);
-    year = y; month = mo; day = d;
+    [day, month, year] = datePart.split('/').map(Number) as [number, number, number];
   } else {
     return null;
   }
 
   const stdMs = new Date(year, month - 1, day, h, m, 0, 0).getTime();
+  // Countdown: positive = time remaining until STD, negative = overdue
   return Math.round((stdMs - nowMs) / 1000);
 };
 
@@ -270,76 +125,73 @@ const formatHHMMSS = (totalSeconds: number): string => {
   return `${sign}${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 };
 
-/** Renders one "HH:MM:SS" digit group that flips whenever the value changes. */
-const AnimatedClock = ({ value, isRed, isPulsing }: { value: string; isRed: boolean; isPulsing: boolean }) => {
-  const [displayValue, setDisplayValue] = useState(value);
+/** A single digit/char that re-animates only when its character changes. */
+const AnimatedChar = ({ char, color }: { char: string; color: string }) => {
   const [key, setKey] = useState(0);
-  const prevRef = useRef(value);
-
+  const prev = useRef(char);
   useEffect(() => {
-    if (value !== prevRef.current) {
-      prevRef.current = value;
+    if (char !== prev.current) {
+      prev.current = char;
       setKey((k) => k + 1);
-      setDisplayValue(value);
     }
-  }, [value]);
-
+  }, [char]);
   return (
     <span
       key={key}
-      className={`digit-flip${isPulsing ? ' tempo-pulse' : ''}`}
-      style={{
-        fontSize: 26,
-        fontWeight: 700,
-        fontVariantNumeric: 'tabular-nums',
-        letterSpacing: '0.04em',
-        color: isRed ? '#C8001E' : 'inherit',
-        fontFamily: 'monospace, Arial',
-      }}
+      className="_td-digit"
+      style={{ color, fontVariantNumeric: 'tabular-nums', display: 'inline-block', minWidth: char === ':' ? '0.3em' : '0.65em', textAlign: 'center' }}
     >
-      {displayValue}
+      {char}
     </span>
   );
 };
 
-type TempoDisponivel = {
+type TempoDisponivelProps = {
   stdDate: string | null;
   stdTime: string | null;
   allTasksCompleted: boolean;
 };
 
-const TempoDisponivelLive = ({ stdDate, stdTime, allTasksCompleted }: TempoDisponivel) => {
+const TempoDisponivelLive = ({ stdDate, stdTime, allTasksCompleted }: TempoDisponivelProps) => {
   const nowMs = useSecondTimestamp();
-
   const seconds = useMemo(
     () => computeSecondsToStd(stdDate, stdTime, nowMs),
     [stdDate, stdTime, nowMs],
   );
 
-  // Freeze the display once all tasks are completed
-  const [frozenDisplay, setFrozenDisplay] = useState<string | null>(null);
+  const [frozenSeconds, setFrozenSeconds] = useState<number | null>(null);
   useEffect(() => {
-    if (allTasksCompleted && frozenDisplay === null && seconds !== null) {
-      setFrozenDisplay(formatHHMMSS(seconds));
+    if (allTasksCompleted && frozenSeconds === null && seconds !== null) {
+      setFrozenSeconds(seconds);
     }
-    if (!allTasksCompleted) {
-      setFrozenDisplay(null);
-    }
-  }, [allTasksCompleted, seconds, frozenDisplay]);
+    if (!allTasksCompleted) setFrozenSeconds(null);
+  }, [allTasksCompleted, seconds, frozenSeconds]);
 
-  if (seconds === null) {
+  const displaySeconds = frozenSeconds ?? seconds;
+
+  if (displaySeconds === null) {
     return (
-      <span style={{ fontSize: 22, fontWeight: 700, color: 'inherit', fontFamily: 'monospace' }}>
+      <span style={{ fontSize: 24, fontWeight: 700, letterSpacing: '0.05em', fontFamily: 'monospace, Arial', color: '#3a3a3a' }}>
         --:--:--
       </span>
     );
   }
 
-  const display = frozenDisplay ?? formatHHMMSS(seconds);
-  const isRed = seconds < 0;
-  const isPulsing = !allTasksCompleted && seconds >= 0 && seconds <= WARNING_SECONDS;
+  const isRed = displaySeconds < 0;
+  const isPulsing = !allTasksCompleted && displaySeconds >= 0 && displaySeconds <= WARNING_SECONDS;
+  const color = isRed ? '#C8001E' : '#3a3a3a';
+  const label = formatHHMMSS(displaySeconds);
 
-  return <AnimatedClock value={display} isRed={isRed} isPulsing={isPulsing} />;
+  return (
+    <span
+      className={isPulsing ? '_td-pulse' : undefined}
+      style={{ fontSize: 24, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'monospace, Arial', display: 'inline-flex', alignItems: 'center' }}
+    >
+      {label.split('').map((char, i) => (
+        <AnimatedChar key={i} char={char} color={color} />
+      ))}
+    </span>
+  );
 };
 
 export const FlightInfoPanel = ({
@@ -400,36 +252,35 @@ export const FlightInfoPanel = ({
 
   return (
     <Box style={styles.panelContainer}>
-      {/* Inject flip + pulse keyframes once per panel mount */}
-      <style>{digitFlipStyle}</style>
+      <style>{tempoStyles}</style>
       <Box ref={wrapperRef} style={styles.mainContent}>
         <Box style={styles.wrapperSupScroll}>
-          <FlightCardsRow $compact={isCompact}>
-            {/* ARRIVAL — independent card */}
-            <ArrivalCard $compact={isCompact}>
-              <CardHeaderRow>
-                <CardHeaderLeft>
+          <Box style={{ ...styles.wrapperSup, ...(isCompact ? styles.wrapperSupCompact : {}) }}>
+            {/* ARRIVAL */}
+            <Box style={{ ...styles.column, ...(isCompact ? styles.columnCompact : {}) }}>
+              <Box style={styles.headerInfo}>
+                <Box style={styles.topInfoLeft}>
                   <Text variant="label-xs" color="tertiary">
                     {viewModel.arrival.title}
                   </Text>
                   <Text variant="label-md">{viewModel.arrival.flightNumber}</Text>
                   <Tag variant="base" type="indigo" label={viewModel.arrival.dateLabel} />
-                </CardHeaderLeft>
-                <CardHeaderRight>
+                </Box>
+                <Box style={styles.topInfoRight}>
                   <SeatEconomy size={20} color={colors.textTertiary} />
                   <Text variant="label-xs" color="tertiary">
                     {viewModel.arrival.passengerCount}
                   </Text>
                   <Text variant="label-sm">{viewModel.arrival.station}</Text>
-                </CardHeaderRight>
-              </CardHeaderRow>
-              <CardBottomRow>
-                <CardBottomLeft>
+                </Box>
+              </Box>
+              <Box style={styles.bottomInfo}>
+                <Box style={styles.bottomInfoLeft}>
                   {viewModel.arrival.infoItems.map((item) => (
                     <InfoItem key={item.label} label={item.label} value={item.value} />
                   ))}
-                </CardBottomLeft>
-                <CardBottomRight>
+                </Box>
+                <Box style={styles.bottomInfoRight}>
                   <Box style={styles.verticalDivider} />
                   {viewModel.arrival.status ? (
                     <Box style={styles.tagBox}>
@@ -448,43 +299,43 @@ export const FlightInfoPanel = ({
                       {viewModel.arrival.actionTime.value}
                     </Text>
                   </Box>
-                </CardBottomRight>
-              </CardBottomRow>
-            </ArrivalCard>
+                </Box>
+              </Box>
+            </Box>
 
-            {/* PREFIXO / FLOTA — center separator box */}
-            <PrefixoBox $compact={isCompact}>
+            {/* PREFIXO / FLOTA */}
+            <Box style={{ ...styles.midBox, ...(isCompact ? styles.midBoxCompact : {}) }}>
               <Text variant="label-xs" color="secondary">PREFIXO</Text>
               <Text variant="label-sm">{viewModel.summary.prefix}</Text>
               <Text variant="label-xs" color="secondary">FLOTA</Text>
               <Text variant="label-xs">{viewModel.summary.fleetLabel}</Text>
-            </PrefixoBox>
+            </Box>
 
-            {/* DEPARTURE — independent card */}
-            <DepartureCard $compact={isCompact}>
-              <CardHeaderRow>
-                <CardHeaderLeft>
+            {/* DEPARTURE */}
+            <Box style={{ ...styles.columnR, ...(isCompact ? styles.columnCompact : {}) }}>
+              <Box style={styles.headerInfo}>
+                <Box style={styles.topInfoLeft}>
                   <Text variant="label-xs" color="tertiary">
                     {viewModel.departure.title}
                   </Text>
                   <Text variant="label-md">{viewModel.departure.flightNumber}</Text>
                   <Tag variant="base" type="indigo" label={viewModel.departure.dateLabel} />
-                </CardHeaderLeft>
-                <CardHeaderRight>
+                </Box>
+                <Box style={styles.topInfoRight}>
                   <SeatEconomy size={20} color={colors.textTertiary} />
                   <Text variant="label-xs" color="tertiary">
                     {viewModel.departure.passengerCount}
                   </Text>
                   <Text variant="label-sm">{viewModel.departure.station}</Text>
-                </CardHeaderRight>
-              </CardHeaderRow>
-              <CardBottomRow>
-                <CardBottomLeft>
+                </Box>
+              </Box>
+              <Box style={styles.bottomInfo}>
+                <Box style={styles.bottomInfoLeft}>
                   {viewModel.departure.infoItems.map((item) => (
                     <InfoItem key={item.label} label={item.label} value={item.value} />
                   ))}
-                </CardBottomLeft>
-                <CardBottomRight>
+                </Box>
+                <Box style={styles.bottomInfoRight}>
                   <Box style={styles.verticalDivider} />
                   <Box style={styles.pushInBox}>
                     <Text variant="label-xs" color="secondary">
@@ -494,20 +345,20 @@ export const FlightInfoPanel = ({
                       {viewModel.departure.actionTime.value}
                     </Text>
                   </Box>
-                </CardBottomRight>
-              </CardBottomRow>
-            </DepartureCard>
+                </Box>
+              </Box>
+            </Box>
 
-            {/* TEMPO DISPONÍVEL — live hh:mm:ss countdown to STD */}
-            <TempoBox $compact={isCompact}>
+            {/* TEMPO DISPONÍVEL — live hh:mm:ss countdown */}
+            <Box style={{ ...styles.estimatedTime, ...(isCompact ? styles.estimatedTimeCompact : {}) }}>
               <Text variant="label-xs" color="secondary">TEMPO DISPONÍVEL</Text>
               <TempoDisponivelLive
                 stdDate={viewModel.summary.stdDate}
                 stdTime={viewModel.summary.stdTime}
                 allTasksCompleted={viewModel.summary.allTasksCompleted}
               />
-            </TempoBox>
-          </FlightCardsRow>
+            </Box>
+          </Box>
         </Box>
         <FlightGanttTimeline
           staTime={viewModel.timeline.staTime}
