@@ -163,8 +163,8 @@ export const styles: Record<string, CSSProperties> = {
     justifyContent: 'center',
     gap: 4,
     padding: '10px 16px',
-    flex: 1,
-    minWidth: 120,
+    flex: '0 0 160px',
+    minWidth: 0,
     boxSizing: 'border-box',
   },
   estimatedTimeCompact: {

@@ -70,33 +70,38 @@ const StatusTag = styled(Tag)`
 
 // ─── Tempo Disponível — animated countdown ───────────────────────────────────
 const tempoStyles = `
-@keyframes _tdSlideIn {
-  from { transform: translateY(-6px); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+@keyframes _tdFade {
+  from { opacity: 0.3; transform: translateY(-3px) scale(0.96); }
+  to   { opacity: 1;   transform: translateY(0)    scale(1); }
 }
 @keyframes _tdPulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.5; }
+  50%       { opacity: 0.55; }
 }
 ._td-digit {
   display: inline-block;
-  animation: _tdSlideIn 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: _tdFade 0.2s ease-out forwards;
   will-change: transform, opacity;
 }
 ._td-pulse {
-  animation: _tdPulse 1.4s ease-in-out infinite;
+  animation: _tdPulse 1.6s ease-in-out infinite;
 }
 `;
 
 const WARNING_SECONDS = 5 * 60;
 
+/**
+ * Parses stdDate (supports "dd/mm/yyyy" and "yyyy-mm-dd") + stdTime ("HH:mm")
+ * and returns seconds remaining until STD from the device's current time.
+ * Positive = STD is in the future (countdown). Negative = STD has passed (overdue).
+ */
 const computeSecondsToStd = (
   stdDate: string | null,
   stdTime: string | null,
   nowMs: number,
 ): number | null => {
   if (!stdDate || !stdTime) return null;
-  const datePart = stdDate.split('T')[0] ?? '';
+  const datePart = stdDate.split('T')[0]?.trim() ?? '';
   const [hStr, mStr] = stdTime.split(':');
   const h = Number(hStr);
   const m = Number(mStr);
@@ -104,25 +109,33 @@ const computeSecondsToStd = (
 
   let year: number, month: number, day: number;
   if (datePart.includes('-')) {
-    [year, month, day] = datePart.split('-').map(Number) as [number, number, number];
+    // "yyyy-mm-dd"
+    const parts = datePart.split('-').map(Number);
+    year = parts[0]!; month = parts[1]!; day = parts[2]!;
   } else if (datePart.includes('/')) {
-    [day, month, year] = datePart.split('/').map(Number) as [number, number, number];
+    // "dd/mm/yyyy"
+    const parts = datePart.split('/').map(Number);
+    day = parts[0]!; month = parts[1]!; year = parts[2]!;
   } else {
     return null;
   }
 
+  if (!year || !month || !day) return null;
+
   const stdMs = new Date(year, month - 1, day, h, m, 0, 0).getTime();
-  // Countdown: positive = time remaining until STD, negative = overdue
   return Math.round((stdMs - nowMs) / 1000);
 };
 
+/**
+ * Formats absolute seconds as "HH:MM:SS" — no sign, always positive display.
+ * The caller decides the color (red = overdue, black = remaining).
+ */
 const formatHHMMSS = (totalSeconds: number): string => {
   const abs = Math.abs(totalSeconds);
   const hh = Math.floor(abs / 3600);
   const mm = Math.floor((abs % 3600) / 60);
   const ss = abs % 60;
-  const sign = totalSeconds < 0 ? '-' : '';
-  return `${sign}${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 };
 
 /** A single digit/char that re-animates only when its character changes. */
