@@ -109,10 +109,12 @@ export const startTask = async (
     started_by: 'operador',
     notas: 'Inicio manual por operador',
   };
+  console.log('[v0] startTask REQUEST | taskInstanceId:', taskInstanceId, '| timeInput:', time, '| built timestamp:', timestamp, '| body:', JSON.stringify(body));
   const result = await flightsHttpPost<TaskEventResponse>(
     `/api/v1/tasks/${taskInstanceId}/start`,
     body,
   );
+  console.log('[v0] startTask RESPONSE:', JSON.stringify(result));
   return result;
 };
 
@@ -131,10 +133,12 @@ export const finishTask = async (
     finished_by: 'operador',
     notas: 'Tarea completada sin novedades',
   };
+  console.log('[v0] finishTask REQUEST | taskInstanceId:', taskInstanceId, '| timeInput:', time, '| built timestamp:', timestamp, '| body:', JSON.stringify(body));
   const result = await flightsHttpPost<TaskEventResponse>(
     `/api/v1/tasks/${taskInstanceId}/finish`,
     body,
   );
+  console.log('[v0] finishTask RESPONSE:', JSON.stringify(result));
   return result;
 };
 
@@ -197,10 +201,11 @@ export const updateTaskStatus = async (
     updatedBy:   'operador1',
   };
 
+  console.log('[v0] updateTaskStatus REQUEST | taskInstanceId:', taskInstanceId, '| startInput:', startTime, '| endInput:', endTime, '| body:', JSON.stringify(body));
   const response = await FlightsHttpClient.patch<UpdateTaskStatusResponse>(
     `/api/v1/turnarounds/tasks/${taskInstanceId}/status`,
     body,
   );
-
+  console.log('[v0] updateTaskStatus RESPONSE:', JSON.stringify(response.data));
   return response.data;
 };

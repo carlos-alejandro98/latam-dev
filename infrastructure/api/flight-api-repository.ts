@@ -194,48 +194,30 @@ export class FlightApiRepository implements FlightRepositoryPort {
         { flightId },
       );
       
-      // Log de respuesta cruda del servicio — muestra exactamente lo que viene del backend
-      // antes de cualquier mapeo. Si status sigue en NOT_STARTED después de completar
-      // la tarea y recargar, el problema es del servicio (no del frontend).
-      console.log(`[FlightApiRepository] getFlightGantt RAW response | flightId: ${flightId} | turnaroundId: ${raw.turnaroundId} | total tasks: ${raw.tasks.length}`);
+      // LOG A: respuesta RAW del backend — muestra lo que el servicio devuelve
+      // ANTES de cualquier mapeo. La columna "calcStart"/"calcEnd" son los valores
+      // que se muestran como "hora estimada" en la UI. Si esos cambian al recargar,
+      // el problema es del backend (calculatedStart/calculatedEnd mutan con actualStart/End).
+      console.log(`[v0] getFlightGantt RAW | flightId: ${flightId} | turnaroundId: ${raw.turnaroundId} | tasks: ${raw.tasks.length}`);
       console.table(
-        raw.tasks.map((t) => ({
-          taskName:           t.taskName,
-          instanceId:         t.instanceId,
-          status:             t.status,
-          actualStart:        t.actualStart
-                                ? `${String(t.actualStart[3]).padStart(2,'0')}:${String(t.actualStart[4]).padStart(2,'0')}`
-                                : null,
-          actualEnd:          t.actualEnd
-                                ? `${String(t.actualEnd[3]).padStart(2,'0')}:${String(t.actualEnd[4]).padStart(2,'0')}`
-                                : null,
-          isDelayed:          t.isDelayed,
-          shouldBeInProgress: t.shouldBeInProgress,
-          shouldBeCompleted:  t.shouldBeCompleted,
-          progressPercent:    t.progressPercent,
-        })),
+        raw.tasks.map((t) => {
+          const fmt = (dt: GanttDateTime) =>
+            dt ? `${String(dt[3]).padStart(2,'0')}:${String(dt[4]).padStart(2,'0')}` : null;
+          return {
+            taskName:      t.taskName,
+            status:        t.status,
+            calcStart:     fmt(t.calculatedStart),   // <-- hora estimada UI (NO debe cambiar)
+            calcEnd:       fmt(t.calculatedEnd),     // <-- hora estimada UI (NO debe cambiar)
+            schedStart:    fmt(t.scheduledStart),    // <-- hora programada original
+            schedEnd:      fmt(t.scheduledEnd),
+            actualStart:   fmt(t.actualStart),       // <-- hora real ingresada
+            actualEnd:     fmt(t.actualEnd),
+            isDelayed:     t.isDelayed,
+          };
+        }),
       );
-      
+
       const mapped = mapTurnaroundToFlightGantt(raw);
-
-      // Log del resultado DESPUÉS del mapeo — compara con la tabla anterior.
-      // Si en la tabla RAW el status ya es NOT_STARTED, el problema es del servicio.
-      // Si en la tabla RAW el status era correcto pero aquí cambia, el problema es del mapeo.
-      console.log(`[FlightApiRepository] getFlightGantt MAPPED | flightId: ${flightId} | tasks: ${mapped.tasks.length}`);
-      console.table(
-        mapped.tasks.map((t) => ({
-          taskName:    t.taskName,
-          instanceId:  t.instanceId,
-          estado:      t.estado,
-          inicioReal:  t.inicioReal
-                         ? `${String(t.inicioReal[3]).padStart(2,'0')}:${String(t.inicioReal[4]).padStart(2,'0')}`
-                         : null,
-          finReal:     t.finReal
-                         ? `${String(t.finReal[3]).padStart(2,'0')}:${String(t.finReal[4]).padStart(2,'0')}`
-                         : null,
-        })),
-      );
-
       return mapped;
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 404) {
