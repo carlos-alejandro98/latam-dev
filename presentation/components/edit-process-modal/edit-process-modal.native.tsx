@@ -23,6 +23,13 @@ export type EditProcessModalProps = {
   onReset: () => void;
 };
 
+/** Masks raw keystrokes into strict "HH:mm" — strips non-digits, re-inserts colon at position 2. */
+const maskTimeInput = (raw: string): string => {
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+};
+
 export const EditProcessModal = ({
   visible,
   processName,
@@ -84,10 +91,10 @@ export const EditProcessModal = ({
                   <TextInput
                     style={styles.timeInput}
                     value={start}
-                    onChangeText={setStart}
+                    onChangeText={(v) => setStart(maskTimeInput(v))}
                     placeholder="--:--"
                     placeholderTextColor="#aaa"
-                    keyboardType="numbers-and-punctuation"
+                    keyboardType="number-pad"
                     maxLength={5}
                   />
                 </View>
@@ -100,10 +107,10 @@ export const EditProcessModal = ({
                   <TextInput
                     style={styles.timeInput}
                     value={end}
-                    onChangeText={setEnd}
+                    onChangeText={(v) => setEnd(maskTimeInput(v))}
                     placeholder="--:--"
                     placeholderTextColor="#aaa"
-                    keyboardType="numbers-and-punctuation"
+                    keyboardType="number-pad"
                     maxLength={5}
                   />
                 </View>

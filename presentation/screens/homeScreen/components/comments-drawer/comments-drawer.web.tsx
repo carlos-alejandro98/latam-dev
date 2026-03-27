@@ -65,6 +65,20 @@ const statusDotStyle = (status: string): CSSProperties => {
   };
 };
 
+/**
+ * Masks a raw string into strict "HH:mm" format.
+ * - Only digits are kept; the colon at position 2 is always preserved.
+ * - Hours are clamped to 0-23, minutes to 0-59.
+ * - The colon is never removed — once the user types 2 digits it is
+ *   inserted automatically, and any attempt to delete it is ignored.
+ */
+const maskTimeInput = (raw: string): string => {
+  // Keep only digits, limit to 4
+  const digits = raw.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+};
+
 const formatCommentHour = (value: string): string => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -274,16 +288,18 @@ export const CommentsDrawer = ({
 
   const handleStartTimeChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      setStartTime(event.target.value);
-      onChangeStartTime?.(event.target.value);
+      const masked = maskTimeInput(event.target.value);
+      setStartTime(masked);
+      onChangeStartTime?.(masked);
     },
     [onChangeStartTime],
   );
 
   const handleEndTimeChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
-      setEndTime(event.target.value);
-      onChangeEndTime?.(event.target.value);
+      const masked = maskTimeInput(event.target.value);
+      setEndTime(masked);
+      onChangeEndTime?.(masked);
     },
     [onChangeEndTime],
   );

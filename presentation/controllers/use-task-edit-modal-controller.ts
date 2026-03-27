@@ -71,8 +71,15 @@ const getEditableTimeValue = (value?: string | null): string => {
   return value;
 };
 
+/**
+ * Normalises a raw keystroke sequence into a strict "HH:mm" mask.
+ * Strips all non-digit characters, then re-inserts the colon at position 2.
+ * The colon is never removed, so the value always stays in "HH:mm" format.
+ */
 const normalizeTimeInput = (value: string): string => {
-  return value.replace(/[^\d:]/g, '').slice(0, 5);
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 };
 
 const getPrimaryActionLabel = (tone: TaskEditTarget['statusTone']): string => {

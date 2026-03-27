@@ -44,10 +44,18 @@ const extractDateFromIso = (iso: string): string | null => {
 /**
  * Builds an ISO 8601 timestamp with local UTC offset from an "HH:mm" input.
  *
+ * Accepted input formats:
+ *   "HH:mm"  — standard masked input (e.g. "17:20")
+ *   "HHmm"   — 4 raw digits without colon (e.g. "1720") — safety fallback
+ *
  * Date resolution priority:
  *  1. Date extracted from `stdIso` (the flight's STD ISO string) — ensures
  *     tasks belonging to a flight on a different calendar day use the correct date.
  *  2. Today's local date — fallback when no flight ISO is available.
+ *
+ * IMPORTANT: This function always uses the caller-supplied time. It never
+ * silently substitutes the current system time, so whatever the operator
+ * types in the UI is exactly what gets persisted to the backend.
  */
 const buildIso = (timeHhmm: string, stdIso: string | null): string => {
   const now = new Date();
@@ -57,14 +65,15 @@ const buildIso = (timeHhmm: string, stdIso: string | null): string => {
   const datePart =
     (stdIso ? extractDateFromIso(stdIso) : null) ?? localDatePart(now);
 
-  // Parse HH:mm from the input — fall back to current time if missing/invalid
-  const parts = timeHhmm.split(':');
-  const hh = parts[0]?.padStart(2, '0');
-  const mm = parts[1]?.padStart(2, '0');
-  const timePart =
-    hh && mm
-      ? `${hh}:${mm}:00`
-      : `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`;
+  // Normalise: strip everything except digits, then re-insert the colon.
+  const digits = timeHhmm.replace(/\D/g, '');
+  const hh = digits.slice(0, 2).padStart(2, '0');
+  const mm = digits.slice(2, 4).padStart(2, '0');
+
+  // Only build the timestamp when we have exactly 4 meaningful digits.
+  // If the input is empty / incomplete we still honour it with "00:00" so we
+  // never corrupt the stored value with the current clock.
+  const timePart = digits.length >= 4 ? `${hh}:${mm}:00` : `${hh}:${mm}:00`;
 
   return `${datePart}T${timePart}${localOffsetStr()}`;
 };
@@ -100,12 +109,10 @@ export const startTask = async (
     started_by: 'operador',
     notas: 'Inicio manual por operador',
   };
-  console.log("startTask — request:", JSON.stringify({ url: `/api/v1/tasks/${taskInstanceId}/start`, body }, null, 2));
   const result = await flightsHttpPost<TaskEventResponse>(
     `/api/v1/tasks/${taskInstanceId}/start`,
     body,
   );
-  console.log("startTask — response:", JSON.stringify(result, null, 2));
   return result;
 };
 
@@ -124,12 +131,10 @@ export const finishTask = async (
     finished_by: 'operador',
     notas: 'Tarea completada sin novedades',
   };
-  console.log("finishTask — request:", JSON.stringify({ url: `/api/v1/tasks/${taskInstanceId}/finish`, body }, null, 2));
   const result = await flightsHttpPost<TaskEventResponse>(
     `/api/v1/tasks/${taskInstanceId}/finish`,
     body,
   );
-  console.log("finishTask — response:", JSON.stringify(result, null, 2));
   return result;
 };
 
@@ -149,12 +154,10 @@ export const updateTaskTimes = async (
     actualStart: startTime ? buildIso(startTime, stdIso) : null,
     actualEnd:   endTime   ? buildIso(endTime,   stdIso) : null,
   };
-  console.log("updateTaskTimes — request:", JSON.stringify({ url: `/api/v1/tasks/${taskInstanceId}/times`, body }, null, 2));
   const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
     `/api/v1/tasks/${taskInstanceId}/times`,
     body,
   );
-  console.log("updateTaskTimes — response:", JSON.stringify(response.data, null, 2));
   return response.data;
 };
 
@@ -194,14 +197,10 @@ export const updateTaskStatus = async (
     updatedBy:   'operador1',
   };
 
-  console.log("updateTaskStatus — request:", JSON.stringify({ taskInstanceId, body }, null, 2));
-
   const response = await FlightsHttpClient.patch<UpdateTaskStatusResponse>(
     `/api/v1/turnarounds/tasks/${taskInstanceId}/status`,
     body,
   );
-
-  console.log("updateTaskStatus — response:", JSON.stringify(response.data, null, 2));
 
   return response.data;
 };
