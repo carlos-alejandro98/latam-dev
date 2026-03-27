@@ -18,11 +18,9 @@ import { useSecondTimestamp } from '@/presentation/hooks/use-second-timestamp';
 import type { FlightInfoPanelProps } from './flight-info-panel.types';
 import { styles } from './flight-info-panel.styles.web';
 
-// Minimum width (px) for the main content area below which the two flight
-// cards (ARRIVAL + DEPARTURE) stack vertically instead of side-by-side.
-// Each card needs ~320px minimum to display cleanly, plus ~110px for PREFIXO
-// and ~170px for TEMPO, so we need ~920px total to keep them horizontal.
-const COMPACT_BREAKPOINT = 920;
+// No JS breakpoint needed — layout is driven purely by CSS flex-wrap.
+// Cards have a min-width of 280px; when the container is too narrow they
+// wrap naturally. The ResizeObserver is no longer used.
 
 // --- Styled components ---
 
@@ -220,21 +218,6 @@ export const FlightInfoPanel = ({
 
   // Observe the actual width of the center area to decide layout direction
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [isCompact, setIsCompact] = useState(false);
-
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setIsCompact(entry.contentRect.width < COMPACT_BREAKPOINT);
-      }
-    });
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
 
   if (loading) {
     return (
@@ -272,10 +255,10 @@ export const FlightInfoPanel = ({
         {/* ── Top header bar ─────────────────────────────────────────────── */}
         <Box style={styles.wrapperSupScroll}>
           {/* Row 1: ARRIVAL | PREFIXO | DEPARTURE | TEMPO DISPONÍVEL */}
-          {/* When compact: cards stack vertically; PREFIXO becomes a horizontal divider row */}
-          <Box style={{ ...styles.wrapperSup, flexDirection: isCompact ? 'column' : 'row' }}>
+          {/* flex-wrap lets cards stack naturally when there is not enough horizontal space */}
+          <Box style={styles.wrapperSup}>
             {/* ARRIVAL */}
-            <Box style={{ ...styles.column, borderRight: isCompact ? 'none' : '1px solid #D9D9D9', borderBottom: isCompact ? '1px solid #D9D9D9' : 'none' }}>
+            <Box style={styles.column}>
               <Box style={styles.headerInfo}>
                 <Box style={styles.topInfoLeft}>
                   <Text variant="label-xs" color="tertiary">{viewModel.arrival.title}</Text>
@@ -311,16 +294,8 @@ export const FlightInfoPanel = ({
               </Box>
             </Box>
 
-            {/* PREFIXO / FLOTA — center gray separator (horizontal row when compact) */}
-            <Box style={{
-              ...styles.midBox,
-              flexDirection: isCompact ? 'row' : 'column',
-              gap: isCompact ? 16 : 2,
-              flex: isCompact ? '1 1 auto' : '0 0 110px',
-              borderRight: isCompact ? 'none' : '1px solid #D9D9D9',
-              borderBottom: isCompact ? '1px solid #D9D9D9' : 'none',
-              justifyContent: isCompact ? 'flex-start' : 'center',
-            }}>
+            {/* PREFIXO / FLOTA — center gray separator */}
+            <Box style={styles.midBox}>
               <Text variant="label-xs" color="secondary">PREFIXO</Text>
               <Text variant="label-sm">{viewModel.summary.prefix}</Text>
               <Text variant="label-xs" color="secondary">FLOTA</Text>
@@ -328,7 +303,7 @@ export const FlightInfoPanel = ({
             </Box>
 
             {/* DEPARTURE */}
-            <Box style={{ ...styles.columnR, borderRight: isCompact ? 'none' : '1px solid #D9D9D9', borderBottom: isCompact ? '1px solid #D9D9D9' : 'none' }}>
+            <Box style={styles.columnR}>
               <Box style={styles.headerInfo}>
                 <Box style={styles.topInfoLeft}>
                   <Text variant="label-xs" color="tertiary">{viewModel.departure.title}</Text>
@@ -358,13 +333,7 @@ export const FlightInfoPanel = ({
             </Box>
 
             {/* TEMPO DISPONÍVEL — live hh:mm:ss countdown */}
-            <Box style={{
-              ...styles.estimatedTime,
-              // When compact: fill full width and remove left border
-              flex: isCompact ? '1 1 auto' : '0 0 170px',
-              borderLeft: isCompact ? 'none' : '1px solid #D9D9D9',
-              borderTop: isCompact ? '1px solid #D9D9D9' : 'none',
-            }}>
+            <Box style={styles.estimatedTime}>
               <Text variant="label-xs" color="secondary">TEMPO DISPONÍVEL</Text>
               <TempoDisponivelLive
                 stdDate={viewModel.summary.stdDate}
