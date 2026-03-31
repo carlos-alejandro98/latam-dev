@@ -2,13 +2,10 @@ import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 
 import { ENV } from '@/config/environment';
-import type { FlightGantt } from '@/domain/entities/flight-gantt';
+import { container } from '@/dependencyInjection/container';
 import { FlightsHttpClient } from '@/infrastructure/http/flights-http-client';
 import type { AppDispatch } from '@/store';
-import {
-  fetchFlightGantt,
-  updateGanttData,
-} from '@/store/slices/flight-gantt-slice';
+import { updateGanttData } from '@/store/slices/flight-gantt-slice';
 
 // Los logs del stream se emiten siempre, independiente de ENV.enableLogs,
 // para que el equipo pueda diagnosticar problemas de conectividad en cualquier entorno.
@@ -99,20 +96,20 @@ export function useGanttStream(
       }, STALE_TIMEOUT_MS);
     };
 
-    /** Actualiza el store con datos nuevos sin activar el estado de carga. */
-    const applyGanttUpdate = (data: FlightGantt) => {
-      if (mounted) {
-        log(`Aplicando actualización silenciosa del gantt para el vuelo: ${data.flight?.flightId ?? 'desconocido'}`);
-        dispatch(updateGanttData(data));
-      }
-    };
-
-    /** Re-fetchea el gantt del vuelo activo y lo empuja al store silenciosamente. */
+    /**
+     * Recarga el gantt del vuelo activo directamente desde el use case,
+     * sin pasar por el thunk fetchFlightGantt para no activar el estado
+     * loading=true y evitar parpadeos o re-renders innecesarios en la UI.
+     */
     const reloadGantt = (flightId: string) => {
       log(`Recargando datos del gantt para el vuelo: ${flightId}`);
-      dispatch(fetchFlightGantt(flightId))
-        .unwrap()
-        .then(applyGanttUpdate)
+      container.getFlightGanttUseCase
+        .execute(flightId)
+        .then((data) => {
+          if (!mounted) return;
+          log(`Gantt actualizado con ${data.tasks.length} tareas para el vuelo: ${flightId}`);
+          dispatch(updateGanttData(data));
+        })
         .catch((err: unknown) => {
           logError(`Error al recargar el gantt del vuelo ${flightId}:`, err);
           // Se mantienen los datos existentes en caso de error
@@ -175,7 +172,7 @@ export function useGanttStream(
         resetStaleTimer();
         const fid = activeFlightIdRef.current;
         log(`Conexión establecida con el servidor. Cargando gantt del vuelo: ${fid ?? 'ninguno'}`);
-        if (fid) void dispatch(fetchFlightGantt(fid));
+        if (fid) reloadGantt(fid);
       });
 
       es.addEventListener('flight_updated', (event: MessageEvent) => {
@@ -249,9 +246,8 @@ export function useGanttStream(
 
     // ── Inicio ────────────────────────────────────────────────────────────
 
-    // Carga el gantt inmediatamente para el vuelo seleccionado, luego abre el stream
-    log(`Cargando gantt inicial del vuelo: ${activeFlightId}`);
-    void dispatch(fetchFlightGantt(activeFlightId));
+    // Abre el stream — el evento 'connected' del servidor cargará el gantt inicial
+    log(`Abriendo stream para el vuelo: ${activeFlightId}`);
     connect();
 
     return teardown;
