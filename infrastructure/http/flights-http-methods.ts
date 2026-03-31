@@ -3,8 +3,9 @@ import { FlightsHttpClient } from "./flights-http-client";
 export const flightsHttpGet = async <T>(
   url: string,
   params?: object,
+  signal?: AbortSignal,
 ): Promise<T> => {
-  const response = await FlightsHttpClient.get<T>(url, { params });
+  const response = await FlightsHttpClient.get<T>(url, { params, signal });
   return response.data;
 };
 

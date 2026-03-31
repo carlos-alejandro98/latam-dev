@@ -5,9 +5,8 @@ import type { FlightGantt } from '@/domain/entities/flight-gantt';
 
 export const fetchFlightGantt = createAsyncThunk(
   'flightGantt/fetchByFlightId',
-  async (flightId: string) => {
-    const result = await container.getFlightGanttUseCase.execute(flightId);
-    return result;
+  async (flightId: string, { signal }) => {
+    return container.getFlightGanttUseCase.execute(flightId, signal);
   },
 );
 
@@ -39,10 +38,18 @@ interface OptimisticTaskPayload {
 }
 
 /** Converts "HH:mm" into a GanttDateTime tuple [year,month,day,hour,minute] using today's date. */
-const hhmmToGanttDateTime = (hhmm: string): FlightGantt['tasks'][0]['inicioReal'] => {
+const hhmmToGanttDateTime = (
+  hhmm: string,
+): FlightGantt['tasks'][0]['inicioReal'] => {
   const [h, m] = hhmm.split(':').map(Number);
   const now = new Date();
-  return [now.getFullYear(), now.getMonth() + 1, now.getDate(), h, m] as unknown as FlightGantt['tasks'][0]['inicioReal'];
+  return [
+    now.getFullYear(),
+    now.getMonth() + 1,
+    now.getDate(),
+    h,
+    m,
+  ] as unknown as FlightGantt['tasks'][0]['inicioReal'];
 };
 
 const diffMinutes = (
@@ -55,14 +62,23 @@ const diffMinutes = (
 
   const [startYear, startMonth, startDay, startHour, startMinute] = start;
   const [endYear, endMonth, endDay, endHour, endMinute] = end;
-  const startDate = new Date(startYear, startMonth - 1, startDay, startHour, startMinute);
+  const startDate = new Date(
+    startYear,
+    startMonth - 1,
+    startDay,
+    startHour,
+    startMinute,
+  );
   const endDate = new Date(endYear, endMonth - 1, endDay, endHour, endMinute);
 
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
     return null;
   }
 
-  return Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
+  return Math.max(
+    0,
+    Math.round((endDate.getTime() - startDate.getTime()) / 60000),
+  );
 };
 
 const flightGanttSlice = createSlice({
@@ -70,7 +86,10 @@ const flightGanttSlice = createSlice({
   initialState,
   reducers: {
     /** Silent update from SSE stream — does NOT trigger loading state. */
-    updateGanttData: (state, action: import('@reduxjs/toolkit').PayloadAction<FlightGantt>) => {
+    updateGanttData: (
+      state,
+      action: import('@reduxjs/toolkit').PayloadAction<FlightGantt>,
+    ) => {
       state.data = action.payload;
     },
     /**
@@ -78,7 +97,10 @@ const flightGanttSlice = createSlice({
      * reflects the user's action immediately while the backend processes it.
      * The next real fetch will overwrite these values with server data.
      */
-    optimisticUpdateTask: (state, action: import('@reduxjs/toolkit').PayloadAction<OptimisticTaskPayload>) => {
+    optimisticUpdateTask: (
+      state,
+      action: import('@reduxjs/toolkit').PayloadAction<OptimisticTaskPayload>,
+    ) => {
       if (!state.data) return;
       const { instanceId, startTime, endTime } = action.payload;
       const task = state.data.tasks.find((t) => t.instanceId === instanceId);
@@ -149,6 +171,9 @@ const flightGanttSlice = createSlice({
         state.data = action.payload;
       })
       .addCase(fetchFlightGantt.rejected, (state, action) => {
+        if (action.meta.aborted) {
+          return;
+        }
         state.loading = false;
         if (action.error.code === 'GANTT_NOT_FOUND') {
           state.data = null;
@@ -161,5 +186,6 @@ const flightGanttSlice = createSlice({
   },
 });
 
-export const { updateGanttData, optimisticUpdateTask } = flightGanttSlice.actions;
+export const { updateGanttData, optimisticUpdateTask } =
+  flightGanttSlice.actions;
 export default flightGanttSlice.reducer;

@@ -169,9 +169,9 @@ export const HomeScreen = () => {
           endTime: resolveTime(realEnd, calcEnd),
           taskInstanceId: instanceId,
           taskStatus: resolvedStatus,
-          // Store planned (calculated) times to detect delays at dispatch time
           plannedStartTime: calcStart === '--' ? undefined : calcStart,
           plannedEndTime: calcEnd === '--' ? undefined : calcEnd,
+          tipoEvento: rowData.task.tipoEvento,
         });
       }
       openDrawerRef.current();

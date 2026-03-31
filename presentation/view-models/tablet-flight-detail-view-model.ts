@@ -72,6 +72,7 @@ export interface TabletFlightTaskViewModel {
   statusLabel: string;
   statusTone: TabletTaskStatusTone;
   searchText: string;
+  tipoEvento: string;
 }
 
 export interface TabletFlightDetailViewModel {
@@ -166,18 +167,6 @@ const formatCount = (value?: number | null): string => {
   return String(value);
 };
 
-const formatMinutesToClock = (minutes?: number | null): string => {
-  if (minutes === null || minutes === undefined) {
-    return FALLBACK_TIME;
-  }
-
-  const totalMinutes = Math.max(0, minutes);
-  const hours = Math.floor(totalMinutes / 60);
-  const remainingMinutes = totalMinutes % 60;
-
-  return `${String(hours).padStart(2, '0')}:${String(remainingMinutes).padStart(2, '0')}`;
-};
-
 const formatMinutesToCompact = (minutes?: number | null): string => {
   if (minutes === null || minutes === undefined) {
     return FALLBACK_TIME;
@@ -218,14 +207,6 @@ const buildLegBadges = (
   }
 
   return badges;
-};
-
-const getDepartureEtdValue = (flight: Flight): string => {
-  if (flight.pushOut) {
-    return FALLBACK_TIME;
-  }
-
-  return formatTimeValue(flight.etdTime);
 };
 
 const getMinutesDiff = (
@@ -270,9 +251,10 @@ const getComparableTaskTimestamp = (task: FlightGanttTask): number => {
   const dateTime =
     task.ultimoEvento ??
     task.inicioReal ??
-    task.inicioCalculado ??
     task.inicioProgramado ??
-    task.finProgramado;
+    task.finProgramado ??
+    task.inicioCalculado ??
+    task.finCalculado;
 
   if (!dateTime) {
     return Number.MAX_SAFE_INTEGER;
@@ -332,6 +314,14 @@ const getStatusModel = (
     };
   }
 
+  // HITO with inicioReal is considered completed (single-moment event)
+  if (task.tipoEvento?.toUpperCase() === 'HITO' && task.inicioReal) {
+    return {
+      statusLabel: 'Finalizado',
+      statusTone: 'completed',
+    };
+  }
+
   // Completed by estado
   if (
     s === 'COMPLETED' ||
@@ -385,7 +375,9 @@ const getTaskDurationMinutes = (task: FlightGanttTask): number | null => {
   return Math.max(0, Math.round((Date.now() - startDate.getTime()) / 60000));
 };
 
-const ganttDateTimeToHHmm = (dt: GanttDateTime | null | undefined): string | null => {
+const ganttDateTimeToHHmm = (
+  dt: GanttDateTime | null | undefined,
+): string | null => {
   if (!dt || dt.length < 5) return null;
   const h = dt[3] % 24;
   const m = dt[4];
@@ -408,18 +400,22 @@ const buildTaskViewModel = (
     title: task.taskName,
     category: categorizeTask(task),
     scheduledRangeLabel: `${scheduledStart} - ${scheduledEnd}`,
-    startTimeLabel: formatTimeValue(task.inicioReal ?? task.inicioCalculado),
-    endTimeLabel: formatTimeValue(task.finReal ?? task.finCalculado),
+    /** Inicio / Término / Hora de Marco: solo tiempos reales; si no hay, `--:--`. */
+    startTimeLabel: realStart ?? FALLBACK_TIME,
+    endTimeLabel: realEnd ?? FALLBACK_TIME,
     realStartTime: realStart,
     realEndTime: realEnd,
-    plannedStartTime: formatTimeValue(task.inicioCalculado ?? task.inicioProgramado),
-    plannedEndTime: formatTimeValue(task.finCalculado ?? task.finProgramado),
+    plannedStartTime: formatTimeValue(
+      task.inicioProgramado ?? task.inicioCalculado,
+    ),
+    plannedEndTime: formatTimeValue(task.finProgramado ?? task.finCalculado),
     durationLabel: formatMinutesToCompact(getTaskDurationMinutes(task)),
     statusLabel: status.statusLabel,
     statusTone: status.statusTone,
     searchText: [task.taskName, task.grupoFuncional, task.fase, task.tipoEvento]
       .join(' ')
       .toLowerCase(),
+    tipoEvento: task.tipoEvento,
   };
 };
 
@@ -483,9 +479,7 @@ export const createTabletFlightDetailViewModel = (
   return {
     header: {
       registrationLabel:
-        ganttFlight?.aircraftPrefix ||
-        flight.aircraftPrefix ||
-        FALLBACK_TEXT,
+        ganttFlight?.aircraftPrefix || flight.aircraftPrefix || FALLBACK_TEXT,
       fleetLabel: getFleetLabel(
         summary?.tatType ?? ganttFlight?.tatType ?? flight.tatType,
         flight.aircraftType,
@@ -526,7 +520,10 @@ export const createTabletFlightDetailViewModel = (
       statusBadgeLabel: getOperationalStatusLabel(flight.atd),
       primaryStats: [
         { label: 'STD', value: formatTimeValue(flight.stdTime) },
-        { label: 'ETD', value: formatEtdDisplayValue(flight.stdTime, flight.etdTime) },
+        {
+          label: 'ETD',
+          value: formatEtdDisplayValue(flight.stdTime, flight.etdTime),
+        },
       ],
       boxValue: departureBox,
       actionTimeLabel: 'PUSH BACK',

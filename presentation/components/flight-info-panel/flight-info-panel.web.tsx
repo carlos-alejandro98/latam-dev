@@ -1,22 +1,30 @@
+/* eslint-disable max-lines */
+
+/* eslint-disable @typescript-eslint/explicit-function-return-type */
+/* eslint-disable max-lines-per-function */
+
+import { SeatEconomy } from '@hangar/react-icons/core/latam/Seat/SeatEconomy';
 import { useRef, useState, useEffect, useMemo } from 'react';
+import { View } from 'react-native';
 import styled, { useTheme } from 'styled-components';
 
-import { FlightRemoteBoarding } from '@hangar/react-icons/core/latam/Flight/FlightRemoteBoarding';
-import { SeatEconomy } from '@hangar/react-icons/core/latam/Seat/SeatEconomy';
-
-import { FlightGanttTimeline } from '@/presentation/components/flight-gantt-timeline';
+import {
+  FlightLanding,
+  FlightTakeOff,
+} from '@/presentation/components/common/icons';
 import {
   Box,
   Spinner,
   Tag,
   Text,
 } from '@/presentation/components/design-system';
-import { FlightInfoEventsPanel } from './flight-info-events-panel';
-
+import { FlightGanttTimeline } from '@/presentation/components/flight-gantt-timeline';
 import { useSecondTimestamp } from '@/presentation/hooks/use-second-timestamp';
 
-import type { FlightInfoPanelProps } from './flight-info-panel.types';
+import { FlightInfoEventsPanel } from './flight-info-events-panel';
 import { styles } from './flight-info-panel.styles.web';
+
+import type { FlightInfoPanelProps } from './flight-info-panel.types';
 
 // No JS breakpoint needed — layout is driven purely by CSS flex-wrap.
 // Cards have a min-width of 280px; when the container is too narrow they
@@ -31,6 +39,8 @@ type PanelColors = {
   textPrimary: string;
   textSecondary: string;
   textTertiary: string;
+  surfacePrimary: string;
+  surfaceTagNeutral: string;
 };
 
 type InfoItemProps = {
@@ -47,6 +57,8 @@ const getPanelColors = (theme: ReturnType<typeof useTheme>): PanelColors => {
     textPrimary: theme?.tokens?.color?.text?.primary ?? '#3a3a3a',
     textSecondary: theme?.tokens?.color?.text?.secondary ?? '#626262',
     textTertiary: theme?.tokens?.color?.text?.tertiary ?? '#070b64',
+    surfacePrimary: theme?.tokens?.color?.surface?.primary ?? '#ffffff',
+    surfaceTagNeutral: theme?.tokens?.color?.neutral?.[200] ?? '#d9d9d9',
   };
 };
 
@@ -86,28 +98,29 @@ const tempoStyles = `
   animation: _tdPulse 1.6s ease-in-out infinite;
 }
 
-/* Header row: single line above 990px, stacked below */
-.hcc-header-row {
-  flex-direction: row !important;
-}
-@media (max-width: 990px) {
-  .hcc-header-row {
-    flex-direction: column !important;
+/* Grid shared by Row 1 (header) and Row 2 (sub-bar) */
+@media (max-width: 1237px) {
+  .hcc-grid {
+    grid-template-columns: 1fr !important;
   }
-  .hcc-header-row .hcc-card {
+  .hcc-grid .hcc-card {
     border-right: none !important;
     border-bottom: 1px solid #D9D9D9;
   }
-  .hcc-header-row .hcc-midbox {
+  .hcc-grid .hcc-midbox {
     flex-direction: row !important;
     gap: 12px !important;
     border-right: none !important;
     border-bottom: 1px solid #D9D9D9;
     width: 100%;
   }
-  .hcc-header-row .hcc-tempo {
+  .hcc-grid .hcc-tempo {
     border-bottom: 1px solid #D9D9D9;
     width: 100%;
+  }
+  .hcc-subbar-cell {
+    border-right: none !important;
+    border-left: none !important;
   }
 }
 `;
@@ -126,7 +139,7 @@ const WARNING_SECONDS = 5 * 60;
  * Negative  = STD has passed today       → red, absolute value shown.
  */
 const computeSecondsToStd = (
-  _stdDate: string | null,  // kept for API compatibility, not used for date resolution
+  _stdDate: string | null, // kept for API compatibility, not used for date resolution
   stdTime: string | null,
   nowMs: number,
 ): number | null => {
@@ -177,7 +190,13 @@ const AnimatedChar = ({ char, color }: { char: string; color: string }) => {
     <span
       key={key}
       className="_td-digit"
-      style={{ color, fontVariantNumeric: 'tabular-nums', display: 'inline-block', minWidth: char === ':' ? '0.3em' : '0.65em', textAlign: 'center' }}
+      style={{
+        color,
+        fontVariantNumeric: 'tabular-nums',
+        display: 'inline-block',
+        minWidth: char === ':' ? '0.3em' : '0.65em',
+        textAlign: 'center',
+      }}
     >
       {char}
     </span>
@@ -190,7 +209,11 @@ type TempoDisponivelProps = {
   allTasksCompleted: boolean;
 };
 
-const TempoDisponivelLive = ({ stdDate, stdTime, allTasksCompleted }: TempoDisponivelProps) => {
+const TempoDisponivelLive = ({
+  stdDate,
+  stdTime,
+  allTasksCompleted,
+}: TempoDisponivelProps) => {
   const nowMs = useSecondTimestamp();
   const seconds = useMemo(
     () => computeSecondsToStd(stdDate, stdTime, nowMs),
@@ -209,21 +232,40 @@ const TempoDisponivelLive = ({ stdDate, stdTime, allTasksCompleted }: TempoDispo
 
   if (displaySeconds === null) {
     return (
-      <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'monospace, Arial', color: '#3a3a3a' }}>
+      <span
+        style={{
+          fontSize: 18,
+          fontWeight: 700,
+          letterSpacing: '0.04em',
+          fontFamily: 'monospace, Arial',
+          color: '#3a3a3a',
+        }}
+      >
         --:--:--
       </span>
     );
   }
 
   const isRed = displaySeconds < 0;
-  const isPulsing = !allTasksCompleted && displaySeconds >= 0 && displaySeconds <= WARNING_SECONDS;
+  const isPulsing =
+    !allTasksCompleted &&
+    displaySeconds >= 0 &&
+    displaySeconds <= WARNING_SECONDS;
   const color = isRed ? '#C8001E' : '#3a3a3a';
   const label = formatHHMMSS(displaySeconds);
 
   return (
     <span
       className={isPulsing ? '_td-pulse' : undefined}
-      style={{ fontSize: 18, fontWeight: 700, letterSpacing: '0.04em', fontFamily: 'monospace, Arial', display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}
+      style={{
+        fontSize: 18,
+        fontWeight: 700,
+        letterSpacing: '0.04em',
+        fontFamily: 'monospace, Arial',
+        display: 'inline-flex',
+        alignItems: 'center',
+        whiteSpace: 'nowrap',
+      }}
     >
       {label.split('').map((char, i) => (
         <AnimatedChar key={i} char={char} color={color} />
@@ -272,147 +314,358 @@ export const FlightInfoPanel = ({
   if (!viewModel) {
     return null;
   }
-
   return (
     <Box style={styles.panelContainer}>
       <style>{tempoStyles}</style>
       <Box ref={wrapperRef} style={styles.mainContent}>
         {/* ── Top header bar ─────────────────────────────────────────────── */}
         <Box style={styles.wrapperSupScroll}>
-          {/* Row 1: ARRIVAL | PREFIXO | DEPARTURE | TEMPO DISPONÍVEL */}
-          {/* Single row above 990px; stacks vertically below via CSS @media */}
-          <Box className="hcc-header-row" style={styles.wrapperSup}>
-            {/* ARRIVAL */}
-            <Box className="hcc-card" style={styles.column}>
-              <Box style={styles.headerInfo}>
-                <Box style={styles.topInfoLeft}>
-                  <Text variant="label-xs" color="tertiary">{viewModel.arrival.title}</Text>
-                  <Text variant="label-md">{viewModel.arrival.flightNumber}</Text>
-                  <Tag variant="base" type="indigo" label={viewModel.arrival.dateLabel} />
-                  {viewModel.arrival.status ? (
-                    <StatusTag
-                      variant="feedback"
-                      type={viewModel.arrival.status.type}
-                      label={viewModel.arrival.status.label}
+          {/* Grid: 4 columnas compartidas por Row 1 y Row 2 */}
+          <Box className="hcc-grid" style={styles.wrapperSupGrid}>
+            {/* ── Row 1 ── display:contents → hijos son grid items directos */}
+            <Box style={styles.wrapperSup}>
+              {/* ARRIVAL — grid col 1 */}
+              <Box className="hcc-card" style={styles.column}>
+                <Box style={styles.headerInfo}>
+                  <Box style={styles.topInfoLeft}>
+                    <Text variant="label-xs" color="tertiary">
+                      {viewModel.arrival.title}
+                    </Text>
+                    <Text variant="label-md">
+                      {viewModel.arrival.flightNumber}
+                    </Text>
+                    <Tag
+                      variant="base"
+                      type="indigo"
+                      label={viewModel.arrival.dateLabel}
                     />
-                  ) : null}
-                </Box>
-                <Box style={styles.topInfoRight}>
-                  <SeatEconomy size={18} color={colors.textTertiary} />
-                  <Text variant="label-xs" color="tertiary">{viewModel.arrival.passengerCount}</Text>
-                  <Text variant="label-sm">{viewModel.arrival.station}</Text>
-                </Box>
-              </Box>
-              <Box style={styles.bottomInfo}>
-                <Box style={styles.bottomInfoLeft}>
-                  {viewModel.arrival.infoItems.map((item) => (
-                    <InfoItem key={item.label} label={item.label} value={item.value} />
-                  ))}
-                </Box>
-                <Box style={styles.bottomInfoRight}>
-                  <Box style={styles.verticalDivider} />
-                  <Box style={styles.pushInBox}>
-                    <Text variant="label-xs" color="secondary">{viewModel.arrival.actionTime.label}</Text>
-                    <Text variant="label-sm">{viewModel.arrival.actionTime.value}</Text>
+                    {viewModel.arrival.status ? (
+                      <StatusTag
+                        variant="feedback"
+                        type={viewModel.arrival.status.type}
+                        label={viewModel.arrival.status.label}
+                      />
+                    ) : null}
                   </Box>
-                </Box>
-              </Box>
-            </Box>
-
-            {/* PREFIXO / FLOTA — center gray separator */}
-            <Box className="hcc-midbox" style={styles.midBox}>
-              <Text variant="label-xs" color="secondary">PREFIXO</Text>
-              <Text variant="label-sm">{viewModel.summary.prefix}</Text>
-              <Text variant="label-xs" color="secondary">FLOTA</Text>
-              <Text variant="label-xs">{viewModel.summary.fleetLabel}</Text>
-            </Box>
-
-            {/* DEPARTURE */}
-            <Box className="hcc-card" style={styles.columnR}>
-              <Box style={styles.headerInfo}>
-                <Box style={styles.topInfoLeft}>
-                  <Text variant="label-xs" color="tertiary">{viewModel.departure.title}</Text>
-                  <Text variant="label-md">{viewModel.departure.flightNumber}</Text>
-                  <Tag variant="base" type="indigo" label={viewModel.departure.dateLabel} />
-                </Box>
-                <Box style={styles.topInfoRight}>
-                  <SeatEconomy size={18} color={colors.textTertiary} />
-                  <Text variant="label-xs" color="tertiary">{viewModel.departure.passengerCount}</Text>
-                  <Text variant="label-sm">{viewModel.departure.station}</Text>
-                </Box>
-              </Box>
-              <Box style={styles.bottomInfo}>
-                <Box style={styles.bottomInfoLeft}>
-                  {viewModel.departure.infoItems.map((item) => (
-                    <InfoItem key={item.label} label={item.label} value={item.value} />
-                  ))}
-                </Box>
-                <Box style={styles.bottomInfoRight}>
-                  <Box style={styles.verticalDivider} />
-                  <Box style={styles.pushInBox}>
-                    <Text variant="label-xs" color="secondary">{viewModel.departure.actionTime.label}</Text>
-                    <Text variant="label-sm">{viewModel.departure.actionTime.value}</Text>
-                  </Box>
-                </Box>
-              </Box>
-            </Box>
-
-            {/* TEMPO DISPONÍVEL — live hh:mm:ss countdown */}
-            <Box className="hcc-tempo" style={styles.estimatedTime}>
-              <Text variant="label-xs" color="secondary">TEMPO DISPONÍVEL</Text>
-              <TempoDisponivelLive
-                stdDate={viewModel.summary.stdDate}
-                stdTime={viewModel.summary.stdTime}
-                allTasksCompleted={viewModel.summary.allTasksCompleted}
-              />
-              <Text variant="label-xs" color="secondary" style={{ marginTop: 2 }}>
-                {viewModel.summary.mtdLabel}
-              </Text>
-            </Box>
-          </Box>
-
-          {/* Row 2: Gray sub-bar — PNAE / Pax CNX / Bags CNX + route type + Tempo Plan */}
-          <Box style={styles.subBar}>
-            <Box style={styles.subBarLeft}>
-              <Text variant="label-xs" color="secondary">PNAE: <Text variant="label-xs">{viewModel.subBar.pnaeArrival}</Text></Text>
-              <Box style={styles.subBarDivider} />
-              <Text variant="label-xs" color="secondary">Pax CNX: <Text variant="label-xs">{viewModel.subBar.paxCnxArrival}</Text></Text>
-              <Box style={styles.subBarDivider} />
-              <Text variant="label-xs" color="secondary">Bags CNX: <Text variant="label-xs">{viewModel.subBar.bagsCnxArrival}</Text></Text>
-            </Box>
-            {viewModel.subBar.routeType ? (
-              <Box style={styles.subBarCenter}>
-                <Box style={styles.routeTypeBadge}>
-                  <Text variant="label-xs" style={{ color: '#3a3a3a', fontWeight: 600 }}>
-                    {viewModel.subBar.routeType}
-                  </Text>
-                </Box>
-              </Box>
-            ) : null}
-            <Box style={styles.subBarRight}>
-              <Text variant="label-xs" color="secondary">PNAE: <Text variant="label-xs">{viewModel.subBar.pnaeDeparture}</Text></Text>
-              <Box style={styles.subBarDivider} />
-              <Text variant="label-xs" color="secondary">Pax CNX: <Text variant="label-xs">{viewModel.subBar.paxCnxDeparture}</Text></Text>
-              <Box style={styles.subBarDivider} />
-              <Text variant="label-xs" color="secondary">Bags CNX: <Text variant="label-xs">{viewModel.subBar.bagsCnxDeparture}</Text></Text>
-              {viewModel.subBar.tempoPlan ? (
-                <>
-                  <Box style={styles.subBarDivider} />
-                  <Box style={styles.tempoPlanBadge}>
-                    <Text variant="label-xs" style={{ color: '#3a3a3a' }}>
-                      Tempo Plan: {viewModel.subBar.tempoPlan}
+                  <Box style={styles.topInfoRight}>
+                    <SeatEconomy size={18} color={colors.textTertiary} />
+                    <Text variant="label-xs" color="tertiary">
+                      {viewModel.arrival.passengerCount}
+                    </Text>
+                    <Text variant="label-sm">
+                      {viewModel.arrival.station}
                     </Text>
                   </Box>
-                </>
-              ) : null}
+                </Box>
+                <Box style={styles.bottomInfo}>
+                  <Box style={styles.bottomInfoLeft}>
+                    {viewModel.arrival.infoItems.map((item) => (
+                      <InfoItem
+                        key={item.label}
+                        label={item.label}
+                        value={item.value}
+                      />
+                    ))}
+                  </Box>
+                  <Box style={styles.bottomInfoRight}>
+                    <Box style={styles.verticalDivider} />
+                    <Box style={styles.pushInBox}>
+                      <Text variant="label-xs" color="secondary">
+                        {viewModel.arrival.actionTime.label}
+                      </Text>
+                      <Text variant="label-sm">
+                        {viewModel.arrival.actionTime.value}
+                      </Text>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* PREFIXO / FLOTA — grid col 2 */}
+              <Box className="hcc-midbox" style={styles.midBox}>
+                <Text variant="label-xs" color="secondary">
+                  PREFIXO
+                </Text>
+                <Text variant="label-sm">{viewModel.summary.prefix}</Text>
+                <Text variant="label-xs" color="secondary">
+                  FLOTA
+                </Text>
+                <Text variant="label-xs">
+                  {viewModel.summary.fleetLabel}
+                </Text>
+              </Box>
+
+              {/* DEPARTURE — grid col 3 */}
+              <Box className="hcc-card" style={styles.columnR}>
+                <Box style={styles.headerInfo}>
+                  <Box style={styles.topInfoLeft}>
+                    <Text variant="label-xs" color="tertiary">
+                      {viewModel.departure.title}
+                    </Text>
+                    <Text variant="label-md">
+                      {viewModel.departure.flightNumber}
+                    </Text>
+                    <Tag
+                      variant="base"
+                      type="indigo"
+                      label={viewModel.departure.dateLabel}
+                    />
+                  </Box>
+                  <Box style={styles.topInfoRight}>
+                    <SeatEconomy size={18} color={colors.textTertiary} />
+                    <Text variant="label-xs" color="tertiary">
+                      {viewModel.departure.passengerCount}
+                    </Text>
+                    <Text variant="label-sm">
+                      {viewModel.departure.station}
+                    </Text>
+                  </Box>
+                </Box>
+                <Box style={styles.bottomInfo}>
+                  <Box style={styles.bottomInfoLeft}>
+                    {viewModel.departure.infoItems.map((item) => (
+                      <InfoItem
+                        key={item.label}
+                        label={item.label}
+                        value={item.value}
+                      />
+                    ))}
+                  </Box>
+                  <Box style={styles.bottomInfoRight}>
+                    <Box style={styles.verticalDivider} />
+                    <Box style={styles.pushInBox}>
+                      <Text variant="label-xs" color="secondary">
+                        {viewModel.departure.actionTime.label}
+                      </Text>
+                      <Text variant="label-sm">
+                        {viewModel.departure.actionTime.value}
+                      </Text>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+
+              {/* TEMPO DISPONÍVEL — grid col 4 */}
+              <Box className="hcc-tempo" style={styles.estimatedTime}>
+                <Text variant="label-xs" color="secondary">
+                  TEMPO DISPONÍVEL
+                </Text>
+                <TempoDisponivelLive
+                  stdDate={viewModel.summary.stdDate}
+                  stdTime={viewModel.summary.stdTime}
+                  allTasksCompleted={viewModel.summary.allTasksCompleted}
+                />
+                {/* MTD oculto por el momento (no prioridad en la entrega actual). Descomentar para volver a mostrar.
+                <Text variant="label-xs" color="secondary" style={{ marginTop: 2 }}>
+                  {viewModel.summary.mtdLabel}
+                </Text>
+                */}
+              </Box>
+            </Box>
+
+            {/* ── Row 2 (sub-bar) ── display:contents → misma grilla */}
+            <Box style={{ display: 'contents' }}>
+              {/* Arrival pills — grid col 1 */}
+              <Box
+                className="hcc-subbar-cell"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  minWidth: 0,
+                  backgroundColor: '#F2F2F2',
+                  borderTop: '1px solid #D9D9D9',
+                  borderLeft: '4px solid transparent',
+                  borderRight: '1px solid #D9D9D9',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <FlightLanding size={32} color={colors.textPrimary} />
+                <View
+                  style={{
+                    backgroundColor: '#FFF',
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 99999,
+                  }}
+                >
+                  <Text
+                    variant="label-xs"
+                    color="secondary"
+                    bold
+                    style={{ fontSize: 14, padding: 4 }}
+                  >
+                    WCH: {viewModel.subBar.wchrArrival}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    backgroundColor: '#FFF',
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 99999,
+                  }}
+                >
+                  <Text
+                    variant="label-xs"
+                    color="secondary"
+                    bold
+                    style={{ fontSize: 14, padding: 4 }}
+                  >
+                    Bags CNX: {viewModel.subBar.bagsCnxArrival}
+                  </Text>
+                </View>
+              </Box>
+
+              {/* Centro: route type — grid col 2 */}
+              <Box
+                className="hcc-subbar-cell"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px 14px',
+                  backgroundColor: '#F2F2F2',
+                  borderTop: '1px solid #D9D9D9',
+                  borderRight: '1px solid #D9D9D9',
+                  boxSizing: 'border-box',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Tag
+                  variant="base"
+                  type="neutral"
+                  label="DOM - INTER"
+                  style={{
+                    paddingTop: 4,
+                    paddingBottom: 4,
+                    paddingLeft: 8,
+                    paddingRight: 8,
+                    borderRadius: 99999,
+                  }}
+                />
+              </Box>
+
+              {/* Departure pills — grid col 3 */}
+              <Box
+                className="hcc-subbar-cell"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 12px',
+                  minWidth: 0,
+                  backgroundColor: '#F2F2F2',
+                  borderTop: '1px solid #D9D9D9',
+                  borderLeft: '4px solid transparent',
+                  borderRight: '1px solid #D9D9D9',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <FlightTakeOff size={32} color={colors.textPrimary} />
+                <View
+                  style={{
+                    backgroundColor: '#FFF',
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 99999,
+                  }}
+                >
+                  <Text
+                    variant="label-xs"
+                    color="secondary"
+                    bold
+                    style={{ fontSize: 14, padding: 4 }}
+                  >
+                    WCH: {viewModel.subBar.wchrDeparture}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    backgroundColor: '#FFF',
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 99999,
+                  }}
+                >
+                  <Text
+                    variant="label-xs"
+                    color="secondary"
+                    bold
+                    style={{ fontSize: 14, padding: 4 }}
+                  >
+                    Bags CNX: {viewModel.subBar.bagsCnxDeparture}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    backgroundColor: '#FFF',
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 99999,
+                  }}
+                >
+                  <Text
+                    variant="label-xs"
+                    color="secondary"
+                    bold
+                    style={{ fontSize: 14, padding: 4 }}
+                  >
+                    Pax CNX: {viewModel.subBar.paxCnxDeparture}
+                  </Text>
+                </View>
+              </Box>
+
+              {/* Tempo Plan — grid col 4 */}
+              <Box
+                className="hcc-subbar-cell"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px 14px',
+                  backgroundColor: '#F2F2F2',
+                  borderTop: '1px solid #D9D9D9',
+                  boxSizing: 'border-box',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: colors.surfaceTagNeutral,
+                    paddingVertical: 4,
+                    paddingHorizontal: 8,
+                    borderRadius: 99999,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Text
+                    variant="label-xs"
+                    color="primary"
+                    style={{ fontSize: 14, padding: 4 }}
+                  >
+                    Tempo Plan: 1:05
+                  </Text>
+                </View>
+              </Box>
             </Box>
           </Box>
         </Box>
 
         <FlightGanttTimeline
+          staDate={viewModel.timeline.staDate}
           staTime={viewModel.timeline.staTime}
+          etaDate={viewModel.timeline.etaDate}
+          etaTime={viewModel.timeline.etaTime}
           stdDate={viewModel.timeline.stdDate}
           stdTime={viewModel.timeline.stdTime}
+          etdDate={viewModel.timeline.etdDate}
           etdTime={viewModel.timeline.etdTime}
           pushOutTime={viewModel.timeline.pushOutTime}
           tasks={viewModel.timeline.tasks}

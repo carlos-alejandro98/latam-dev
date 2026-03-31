@@ -8,6 +8,8 @@ export interface TimelineBarRange {
 export interface TimelineDomain {
   maxMinute: number;
   minMinute: number;
+  stdMinute: number | null;
+  timelineStartDateMs: number;
 }
 
 export interface TimelineMarker {

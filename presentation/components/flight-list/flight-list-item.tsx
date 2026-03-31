@@ -69,13 +69,7 @@ export interface FlightListItemProps {
 }
 
 export const FlightListItem = React.memo<FlightListItemProps>(
-  ({
-    flight,
-    selected,
-    colors,
-    onSelectFlight,
-    isLast,
-  }) => {
+  ({ flight, selected, colors, onSelectFlight, isLast }) => {
     const viewModel = useMemo<FlightViewModel>(
       () => createFlightViewModel(flight),
       [flight],

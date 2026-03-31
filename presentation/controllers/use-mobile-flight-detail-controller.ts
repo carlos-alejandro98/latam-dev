@@ -121,6 +121,7 @@ export const useMobileFlightDetailController = (flight: Flight | null) => {
     viewModel,
     reload,
     taskEditModal,
+    taskActions,
     loading: shouldUseRequestState ? loading : false,
     error: shouldUseRequestState ? error : undefined,
   };

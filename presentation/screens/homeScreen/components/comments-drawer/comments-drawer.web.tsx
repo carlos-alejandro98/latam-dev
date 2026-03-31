@@ -248,8 +248,68 @@ export const CommentsDrawer = ({
     endTime,
   ]);
 
-  // "Actualizar" — only called when task is already COMPLETED.
-  // Sends start + end in a single update without re-running the full start/finish flow.
+  const isHito =
+    selectedProcess?.tipoEvento?.toUpperCase() === 'HITO';
+
+  const handleCompleteHito = useCallback(async () => {
+    if (
+      !canManageTaskActions ||
+      !selectedProcess?.taskInstanceId ||
+      taskActionLoading
+    )
+      return;
+    setTaskActionLoading(true);
+    setTaskActionError(null);
+    try {
+      await onStartTask?.(selectedProcess.taskInstanceId, endTime);
+      await onFinishTask?.(selectedProcess.taskInstanceId, endTime);
+      setCurrentStatus('COMPLETADA');
+    } catch {
+      setTaskActionError('Error al completar el hito. Intenta de nuevo.');
+    } finally {
+      setTaskActionLoading(false);
+    }
+  }, [
+    canManageTaskActions,
+    selectedProcess,
+    taskActionLoading,
+    onStartTask,
+    onFinishTask,
+    endTime,
+  ]);
+
+  const handleUpdateHito = useCallback(async () => {
+    if (
+      !canManageTaskActions ||
+      !selectedProcess?.taskInstanceId ||
+      taskActionLoading
+    )
+      return;
+    setTaskActionLoading(true);
+    setTaskActionError(null);
+    try {
+      await onUpdateTask?.(
+        selectedProcess.taskInstanceId,
+        endTime,
+        endTime,
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : 'Error al actualizar el hito. Intenta de nuevo.';
+      setTaskActionError(msg);
+    } finally {
+      setTaskActionLoading(false);
+    }
+  }, [
+    canManageTaskActions,
+    selectedProcess,
+    taskActionLoading,
+    onUpdateTask,
+    endTime,
+  ]);
+
   const handleUpdateTask = useCallback(async () => {
     if (
       !canManageTaskActions ||
@@ -443,39 +503,53 @@ export const CommentsDrawer = ({
             </div>
           </div>
 
-          {/* Time fields:
-               - PENDIENTE:   Inicio editable, Fin bloqueado
-               - EN_PROGRESO: Inicio bloqueado, Fin editable
-               - COMPLETADA:  Ambos editables (permite actualizar) */}
           <div style={styles.timeFields}>
-            <TextField
-              id="drawer-start-time-input"
-              label="Inicio"
-              value={startTime}
-              placeholder="00:00"
-              disabled={
-                !canManageTaskActions ||
-                submitting ||
-                taskActionLoading ||
-                isInProgress
-              }
-              onChange={handleStartTimeChange}
-              cleanable
-            />
-            <TextField
-              id="drawer-end-time-input"
-              label="Fin"
-              value={endTime}
-              placeholder="00:00"
-              disabled={
-                !canManageTaskActions ||
-                submitting ||
-                taskActionLoading ||
-                (!isInProgress && !isCompleted)
-              }
-              onChange={handleEndTimeChange}
-              cleanable
-            />
+            {isHito ? (
+              <TextField
+                id="drawer-hito-time-input"
+                label="Hora"
+                value={endTime}
+                placeholder="00:00"
+                disabled={
+                  !canManageTaskActions ||
+                  submitting ||
+                  taskActionLoading
+                }
+                onChange={handleEndTimeChange}
+                cleanable
+              />
+            ) : (
+              <>
+                <TextField
+                  id="drawer-start-time-input"
+                  label="Inicio"
+                  value={startTime}
+                  placeholder="00:00"
+                  disabled={
+                    !canManageTaskActions ||
+                    submitting ||
+                    taskActionLoading ||
+                    isInProgress
+                  }
+                  onChange={handleStartTimeChange}
+                  cleanable
+                />
+                <TextField
+                  id="drawer-end-time-input"
+                  label="Fin"
+                  value={endTime}
+                  placeholder="00:00"
+                  disabled={
+                    !canManageTaskActions ||
+                    submitting ||
+                    taskActionLoading ||
+                    (!isInProgress && !isCompleted)
+                  }
+                  onChange={handleEndTimeChange}
+                  cleanable
+                />
+              </>
+            )}
           </div>
 
           {/* Error message from backend action */}
@@ -495,7 +569,6 @@ export const CommentsDrawer = ({
             </div>
           ) : null}
 
-          {/* Iniciar / Finalizar action buttons — always visible so tasks can be restarted */}
           <div style={styles.timeButtons}>
             <div
               style={{
@@ -506,7 +579,6 @@ export const CommentsDrawer = ({
                 justifyContent: 'flex-end',
               }}
             >
-              {/* Cancelar */}
               <button
                 type="button"
                 onClick={onClose}
@@ -530,7 +602,71 @@ export const CommentsDrawer = ({
               >
                 Cancelar
               </button>
-              {isInProgress ? (
+              {isHito ? (
+                <button
+                  type="button"
+                  disabled={!canManageTaskActions || taskActionLoading}
+                  onClick={() => {
+                    void (isCompleted
+                      ? handleUpdateHito()
+                      : handleCompleteHito());
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 20px',
+                    borderRadius: 20,
+                    borderWidth: 0,
+                    borderStyle: 'solid',
+                    borderColor: 'transparent',
+                    backgroundColor:
+                      !canManageTaskActions || taskActionLoading
+                        ? '#6B71D8'
+                        : '#2C31C9',
+                    color: '#ffffff',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor:
+                      !canManageTaskActions || taskActionLoading
+                        ? 'not-allowed'
+                        : 'pointer',
+                    opacity:
+                      !canManageTaskActions || taskActionLoading ? 0.75 : 1,
+                    transition:
+                      'background-color 200ms ease, opacity 200ms ease',
+                    minWidth: 130,
+                    justifyContent: 'center',
+                  }}
+                >
+                  {taskActionLoading ? (
+                    <>
+                      <span
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: '50%',
+                          borderWidth: 2,
+                          borderStyle: 'solid',
+                          borderColor: 'rgba(255,255,255,0.35)',
+                          borderTopColor: '#fff',
+                          animation: 'spin 0.7s linear infinite',
+                          display: 'inline-block',
+                          flexShrink: 0,
+                        }}
+                      />
+                      {isCompleted ? 'Actualizando...' : 'Completando...'}
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 16, lineHeight: 1 }}>
+                        &#10003;
+                      </span>
+                      {isCompleted ? 'Actualizar' : 'Completar'}
+                    </>
+                  )}
+                </button>
+              ) : isInProgress ? (
                 <button
                   type="button"
                   disabled={

@@ -12,6 +12,8 @@ export type SelectedProcess = {
   plannedStartTime?: string;
   /** Planned end time "HH:mm" from the calculated range — used to detect delays */
   plannedEndTime?: string;
+  /** Task type — 'HITO' for milestones, 'TASK' for regular tasks */
+  tipoEvento?: string;
 };
 
 export type SavedBarData = {

@@ -1,13 +1,14 @@
-import { useDispatch, useSelector } from "react-redux";
+import { useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 
-import type { AppDispatch, RootState } from "@/store";
+import type { FlightGantt } from '@/domain/entities/flight-gantt';
+import type { AppDispatch, RootState } from '@/store';
 import {
   fetchFlightGantt,
   refreshTurnaroundMetrics,
   updateGanttData,
   optimisticUpdateTask,
-} from "@/store/slices/flight-gantt-slice";
-import type { FlightGantt } from "@/domain/entities/flight-gantt";
+} from '@/store/slices/flight-gantt-slice';
 
 export const useFlightGanttStoreAdapter = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -19,20 +20,40 @@ export const useFlightGanttStoreAdapter = () => {
     (state: RootState) => state.flightGantt.flightId,
   );
 
+  const loadFlightGantt = useCallback(
+    (selectedFlightId: string) => dispatch(fetchFlightGantt(selectedFlightId)),
+    [dispatch],
+  );
+
+  const refreshTurnaroundMetricsFn = useCallback(
+    (turnaroundId: string) => dispatch(refreshTurnaroundMetrics(turnaroundId)),
+    [dispatch],
+  );
+
+  const applyGanttUpdate = useCallback(
+    (data: FlightGantt) => dispatch(updateGanttData(data)),
+    [dispatch],
+  );
+
+  const patchTask = useCallback(
+    (payload: {
+      instanceId: string;
+      startTime?: string | null;
+      endTime?: string | null;
+    }) => dispatch(optimisticUpdateTask(payload)),
+    [dispatch],
+  );
+
   return {
     gantt,
     loading,
     error,
     flightId,
-    loadFlightGantt: (selectedFlightId: string) =>
-      dispatch(fetchFlightGantt(selectedFlightId)),
-    refreshTurnaroundMetrics: (turnaroundId: string) =>
-      dispatch(refreshTurnaroundMetrics(turnaroundId)),
+    loadFlightGantt,
+    refreshTurnaroundMetrics: refreshTurnaroundMetricsFn,
     /** Applies a gantt update silently (no loading flash) — used by SSE stream. */
-    applyGanttUpdate: (data: FlightGantt) =>
-      dispatch(updateGanttData(data)),
+    applyGanttUpdate,
     /** Optimistically patches a single task before the backend confirms. */
-    patchTask: (payload: { instanceId: string; startTime?: string | null; endTime?: string | null }) =>
-      dispatch(optimisticUpdateTask(payload)),
+    patchTask,
   };
 };

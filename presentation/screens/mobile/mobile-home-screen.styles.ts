@@ -41,9 +41,9 @@ export const styles = {
     shadowOffset: { width: 6, height: 0 },
     elevation: 10,
   },
+  /** top se define en pantalla (debajo del header) para no tapar el botón menú. */
   edgeSwipeZone: {
     position: 'absolute' as const,
-    top: 0,
     left: 0,
     bottom: 0,
     width: 40,

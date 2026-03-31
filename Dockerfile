@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.description="Template base de componente"
 LABEL org.opencontainers.image.authors="grp_arquitectura-empresarial@latam.com"
 
 ## Copy our angular web site to the nginx root
-COPY /build/ /opt/app-root/src
+COPY /dist/ /opt/app-root/src
 
 ## Copy nginx configuration
 COPY expo-nginx.conf /opt/app-root/etc/nginx.default.d/expo-nginx.conf

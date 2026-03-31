@@ -1,7 +1,7 @@
-export const AXIS_HEIGHT = 40;
+export const AXIS_HEIGHT = 46;
 export const CALCULATED_BAR_COLOR = '#cfcfcf';
 export const CALCULATED_BAR_HEIGHT = 14;
-export const HEADER_HEIGHT = 44;
+export const HEADER_HEIGHT = 50;
 export const TIMELINE_TOP_SCROLL_HEIGHT = 16;
 export const HEADER_ROW_HEIGHT = HEADER_HEIGHT + TIMELINE_TOP_SCROLL_HEIGHT;
 export const PROCESS_COLUMN_WIDTH = 308;
@@ -11,6 +11,7 @@ export const START_COLUMN_WIDTH = 72;
 export const TIME_COLUMN_WIDTH = 72;
 export const TIMELINE_ROW_PADDING = 8;
 export const LEFT_SCROLLBAR_TOP_OFFSET = 4;
+export const LEFT_SCROLLBAR_TASK_GAP = 12;
 export const TOTAL_LEFT_COLUMNS_WIDTH =
   PROCESS_COLUMN_WIDTH + START_COLUMN_WIDTH + TIME_COLUMN_WIDTH;
 
@@ -211,6 +212,10 @@ export const styles = {
     cursor: 'pointer',
     height: '100%',
     width: 6,
+  },
+  processTaskCell: {
+    paddingLeft: 12 + 6 + LEFT_SCROLLBAR_TASK_GAP,
+    paddingRight: 12,
   },
   zoomControlButton: {
     alignItems: 'center',

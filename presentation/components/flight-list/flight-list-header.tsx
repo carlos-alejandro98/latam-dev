@@ -10,13 +10,15 @@ import {
 } from '@/presentation/components/design-system';
 
 import { FlightListDateSelector } from './flight-list-date-selector';
-import type { OrderKey, PanelColors } from './flight-list.types';
+import { styles } from './flight-list.styles';
 import {
   CheckOutlined,
   DoubleCaretLeftOutlined,
   SearchOutlined,
 } from './icons';
-import { styles } from './flight-list.styles';
+
+import type { OrderKey, PanelColors } from './flight-list.types';
+
 
 export interface FlightListHeaderProps {
   colors: PanelColors;

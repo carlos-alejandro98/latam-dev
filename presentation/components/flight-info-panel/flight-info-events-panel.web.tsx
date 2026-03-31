@@ -3,17 +3,17 @@ import {
   DoubleCaretRightOutlined,
 } from '@hangar/react-icons/core/interaction';
 import { UnarchiveOutlined } from '@hangar/react-icons/core/interaction/UnarchiveOutlined';
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { useTheme } from 'styled-components';
 
 import { Box, Text } from '@/presentation/components/design-system';
-import type { RootState } from '@/store';
-import type { SessionEvent } from '@/store/slices/session-events-slice';
 import type {
   FlightInfoPanelEventItemViewModel,
   FlightInfoPanelEventsViewModel,
 } from '@/presentation/view-models/flight-info-panel-view-model';
+import type { RootState } from '@/store';
+import type { SessionEvent } from '@/store/slices/session-events-slice';
 
 import { styles } from './flight-info-panel.styles.web';
 
@@ -37,7 +37,7 @@ if (typeof document !== 'undefined') {
 type Tab = 'hitos' | 'alertas';
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'hitos',   label: 'Hitos'   },
+  { key: 'hitos', label: 'Hitos' },
   { key: 'alertas', label: 'Alertas' },
 ];
 
@@ -47,33 +47,36 @@ type FlightInfoEventsPanelProps = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getPanelColors = (theme: ReturnType<typeof useTheme>) => ({
-  borderPrimary:           theme?.tokens?.color?.border?.primary            ?? '#d9d9d9',
-  interactionSoftDefault:  theme?.tokens?.color?.interaction?.softDefault   ?? '#2c31c9',
-  surfaceSecondary:        theme?.tokens?.color?.surface?.secondary          ?? '#f2f2f2',
-  surfaceInfoSoft:         '#E7E8FD',
-  textPrimary:             theme?.tokens?.color?.text?.primary               ?? '#3a3a3a',
-  textSecondary:           theme?.tokens?.color?.text?.secondary             ?? '#626262',
+  borderPrimary: theme?.tokens?.color?.border?.primary ?? '#d9d9d9',
+  interactionSoftDefault:
+    theme?.tokens?.color?.interaction?.softDefault ?? '#2c31c9',
+  surfaceSecondary: theme?.tokens?.color?.surface?.secondary ?? '#f2f2f2',
+  surfaceInfoSoft: '#E7E8FD',
+  textPrimary: theme?.tokens?.color?.text?.primary ?? '#3a3a3a',
+  textSecondary: theme?.tokens?.color?.text?.secondary ?? '#626262',
 });
 
-const formatPcTime = (ts: number): string => {
-  const d  = new Date(ts);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
-};
-
 /** Build the human-readable description for a session event */
-const buildSessionDescription = (ev: SessionEvent): { text: string; delayed: boolean } => {
-  const delay = ev.isDelayed && ev.delayMinutes > 0
-    ? ` (${ev.delayMinutes} min de demora)`
-    : '';
+const buildSessionDescription = (
+  ev: SessionEvent,
+): { text: string; delayed: boolean } => {
+  const delay =
+    ev.isDelayed && ev.delayMinutes > 0
+      ? ` (${ev.delayMinutes} min de demora)`
+      : '';
   const onTime = !ev.isDelayed ? ' a tiempo' : '';
 
   if (ev.type === 'started') {
-    return { text: `Iniciado${onTime}${delay}: ${ev.taskName}`, delayed: ev.isDelayed };
+    return {
+      text: `Iniciado${onTime}${delay}: ${ev.taskName}`,
+      delayed: ev.isDelayed,
+    };
   }
   if (ev.type === 'finished') {
-    return { text: `Finalizado${onTime}${delay}: ${ev.taskName}, se finalizó la tarea a las ${ev.time}`, delayed: ev.isDelayed };
+    return {
+      text: `Finalizado${onTime}${delay}: ${ev.taskName}, se finalizó la tarea a las ${ev.time}`,
+      delayed: ev.isDelayed,
+    };
   }
   return { text: `Actualizado: ${ev.taskName}`, delayed: false };
 };
@@ -86,8 +89,8 @@ const SessionHitoRow = ({
   isNew,
   colors,
 }: {
-  event:  SessionEvent;
-  isNew:  boolean;
+  event: SessionEvent;
+  isNew: boolean;
   colors: ReturnType<typeof getPanelColors>;
 }) => {
   const { text, delayed } = buildSessionDescription(event);
@@ -96,7 +99,9 @@ const SessionHitoRow = ({
     <Box
       style={{
         ...styles.eventItem,
-        animation: isNew ? 'hitoSlideIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both' : undefined,
+        animation: isNew
+          ? 'hitoSlideIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both'
+          : undefined,
       }}
     >
       {/* Badge — same size/style as SIGA badges */}
@@ -110,7 +115,11 @@ const SessionHitoRow = ({
           variant="label-xs"
           style={{ color: delayed ? '#C8001E' : '#07605B', fontWeight: '700' }}
         >
-          {event.type === 'started' ? 'INICIO' : event.type === 'finished' ? 'FIN' : 'ACT.'}
+          {event.type === 'started'
+            ? 'INICIO'
+            : event.type === 'finished'
+              ? 'FIN'
+              : 'ACT.'}
         </Text>
       </Box>
 
@@ -120,7 +129,7 @@ const SessionHitoRow = ({
           variant="label-xs"
           style={{ ...styles.eventTime, color: colors.textSecondary }}
         >
-          {formatPcTime(event.timestamp)}
+          {event.time}
         </Text>
         <Text
           variant="label-xs"
@@ -137,22 +146,24 @@ const SessionHitoRow = ({
 };
 
 // ─── HitosList ───────────────────────────────────────────────────────────────
-// Renders backend hitos + session events merged, auto-scrolls on new session event
+// Renders: 1) SIGA task list, 2) hito events (inicioReal/finReal), 3) filtered session events
 const HitosList = ({
   items,
+  hitoItems,
+  filteredSessionEvents,
   emptyMessage,
   colors,
 }: {
-  items:        FlightInfoPanelEventItemViewModel[];
+  items: FlightInfoPanelEventItemViewModel[];
+  hitoItems: FlightInfoPanelEventItemViewModel[];
+  filteredSessionEvents: SessionEvent[];
   emptyMessage: string;
-  colors:       ReturnType<typeof getPanelColors>;
+  colors: ReturnType<typeof getPanelColors>;
 }) => {
-  const sessionEvents = useSelector((state: RootState) => state.sessionEvents.events);
-  const scrollRef     = useRef<HTMLDivElement>(null);
-  const prevLen       = useRef(sessionEvents.length);
-  const newestId      = useRef<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const prevLen = useRef(filteredSessionEvents.length);
+  const newestId = useRef<string | null>(null);
 
-  // Scroll to bottom on initial mount (panel just opened) — double rAF ensures layout is complete
   useEffect(() => {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -163,10 +174,10 @@ const HitosList = ({
     });
   }, []);
 
-  // Auto-scroll to bottom when a new session event appears
   useEffect(() => {
-    if (sessionEvents.length > prevLen.current) {
-      const newest = sessionEvents[sessionEvents.length - 1];
+    if (filteredSessionEvents.length > prevLen.current) {
+      const newest =
+        filteredSessionEvents[filteredSessionEvents.length - 1];
       newestId.current = newest?.id ?? null;
       requestAnimationFrame(() => {
         if (scrollRef.current) {
@@ -174,15 +185,20 @@ const HitosList = ({
         }
       });
     }
-    prevLen.current = sessionEvents.length;
-  }, [sessionEvents]);
+    prevLen.current = filteredSessionEvents.length;
+  }, [filteredSessionEvents]);
 
-  const hasContent = items.length > 0 || sessionEvents.length > 0;
+  const hasContent =
+    items.length > 0 ||
+    hitoItems.length > 0 ||
+    filteredSessionEvents.length > 0;
 
   if (!hasContent) {
     return (
       <Box style={styles.eventsEmptyState}>
-        <Text variant="label-sm" color="secondary">{emptyMessage}</Text>
+        <Text variant="label-sm" color="secondary">
+          {emptyMessage}
+        </Text>
       </Box>
     );
   }
@@ -204,7 +220,7 @@ const HitosList = ({
         boxSizing: 'border-box',
       }}
     >
-      {/* Backend hitos */}
+      {/* SIGA tasks — full task list */}
       {items.map((item) => (
         <Box key={item.id} style={styles.eventItem}>
           {item.source && (
@@ -216,7 +232,10 @@ const HitosList = ({
             >
               <Text
                 variant="label-xs"
-                style={{ color: colors.interactionSoftDefault, fontWeight: '700' }}
+                style={{
+                  color: colors.interactionSoftDefault,
+                  fontWeight: '700',
+                }}
               >
                 {item.source}
               </Text>
@@ -239,8 +258,49 @@ const HitosList = ({
         </Box>
       ))}
 
-      {/* Session events — appended below backend hitos, slide-in animation on newest */}
-      {sessionEvents.map((ev) => (
+      {/* Hito events — persistent events from inicioReal/finReal */}
+      {hitoItems.map((item) => (
+        <Box key={item.id} style={styles.eventItem}>
+          {item.source && (
+            <Box
+              style={{
+                ...styles.eventBadge,
+                backgroundColor: item.isDelayed ? '#FFF0F0' : '#E7F7EE',
+              }}
+            >
+              <Text
+                variant="label-xs"
+                style={{
+                  color: item.isDelayed ? '#C8001E' : '#07605B',
+                  fontWeight: '700',
+                }}
+              >
+                {item.source}
+              </Text>
+            </Box>
+          )}
+          <Box style={styles.eventMeta}>
+            <Text
+              variant="label-xs"
+              style={{ ...styles.eventTime, color: colors.textSecondary }}
+            >
+              {item.timeLabel}
+            </Text>
+            <Text
+              variant="label-xs"
+              style={{
+                ...styles.eventDescription,
+                color: item.isDelayed ? '#C8001E' : colors.textPrimary,
+              }}
+            >
+              {item.description}
+            </Text>
+          </Box>
+        </Box>
+      ))}
+
+      {/* Session events — only those not yet synced to API, slide-in animation on newest */}
+      {filteredSessionEvents.map((ev) => (
         <SessionHitoRow
           key={ev.id}
           event={ev}
@@ -258,14 +318,16 @@ const AlertasList = ({
   emptyMessage,
   colors,
 }: {
-  items:        FlightInfoPanelEventItemViewModel[];
+  items: FlightInfoPanelEventItemViewModel[];
   emptyMessage: string;
-  colors:       ReturnType<typeof getPanelColors>;
+  colors: ReturnType<typeof getPanelColors>;
 }) => {
   if (!items.length) {
     return (
       <Box style={styles.eventsEmptyState}>
-        <Text variant="label-sm" color="secondary">{emptyMessage}</Text>
+        <Text variant="label-sm" color="secondary">
+          {emptyMessage}
+        </Text>
       </Box>
     );
   }
@@ -289,20 +351,34 @@ const AlertasList = ({
       {items.map((item) => (
         <Box key={item.id} style={styles.eventItem}>
           {item.source && (
-            <Box style={{ ...styles.eventBadge, backgroundColor: colors.surfaceInfoSoft }}>
+            <Box
+              style={{
+                ...styles.eventBadge,
+                backgroundColor: colors.surfaceInfoSoft,
+              }}
+            >
               <Text
                 variant="label-xs"
-                style={{ color: colors.interactionSoftDefault, fontWeight: '700' }}
+                style={{
+                  color: colors.interactionSoftDefault,
+                  fontWeight: '700',
+                }}
               >
                 {item.source}
               </Text>
             </Box>
           )}
           <Box style={styles.eventMeta}>
-            <Text variant="label-xs" style={{ ...styles.eventTime, color: colors.textSecondary }}>
+            <Text
+              variant="label-xs"
+              style={{ ...styles.eventTime, color: colors.textSecondary }}
+            >
               {item.timeLabel}
             </Text>
-            <Text variant="label-xs" style={{ ...styles.eventDescription, color: colors.textPrimary }}>
+            <Text
+              variant="label-xs"
+              style={{ ...styles.eventDescription, color: colors.textPrimary }}
+            >
               {item.description}
             </Text>
           </Box>
@@ -316,16 +392,37 @@ const AlertasList = ({
 export const FlightInfoEventsPanel = ({
   events,
 }: FlightInfoEventsPanelProps) => {
-  const theme  = useTheme();
+  const theme = useTheme();
   const colors = getPanelColors(theme);
-
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeTab, setActiveTab]   = useState<Tab>('hitos');
+  const [activeTab, setActiveTab] = useState<Tab>('hitos');
 
-  const sessionEvents = useSelector((state: RootState) => state.sessionEvents.events);
-  const prevCountRef  = useRef(sessionEvents.length);
+  const sessionEvents = useSelector(
+    (state: RootState) => state.sessionEvents.events,
+  );
+  const prevCountRef = useRef(sessionEvents.length);
 
-  // Auto-expand to Hitos when a new session event arrives
+  const hitoItems = useMemo<FlightInfoPanelEventItemViewModel[]>(
+    () => events.hitoItems ?? [],
+    [events.hitoItems],
+  );
+
+  const filteredSessionEvents = useMemo(() => {
+    const apiKeys = new Set(
+      hitoItems
+        .filter(
+          (item) => item.taskInstanceId && item.eventType,
+        )
+        .map(
+          (item) => `${item.taskInstanceId}-${item.eventType}`,
+        ),
+    );
+    return sessionEvents.filter((ev) => {
+      if (!ev.taskInstanceId) return true;
+      return !apiKeys.has(`${ev.taskInstanceId}-${ev.type}`);
+    });
+  }, [hitoItems, sessionEvents]);
+
   useEffect(() => {
     if (sessionEvents.length > prevCountRef.current) {
       setIsExpanded(true);
@@ -339,7 +436,12 @@ export const FlightInfoEventsPanel = ({
   // ── Collapsed ─────────────────────────────────────────────────────────────
   if (!isExpanded) {
     return (
-      <Box style={{ ...styles.eventsPanelCollapsed, borderLeftColor: colors.borderPrimary }}>
+      <Box
+        style={{
+          ...styles.eventsPanelCollapsed,
+          borderLeftColor: colors.borderPrimary,
+        }}
+      >
         <button
           type="button"
           onClick={() => setIsExpanded(true)}
@@ -370,9 +472,17 @@ export const FlightInfoEventsPanel = ({
             >
               <UnarchiveOutlined size={28} color={colors.textPrimary} />
             </button>
-            <Box style={{ ...styles.eventsPanelCollapsedCount, backgroundColor: colors.surfaceSecondary }}>
-              <Text variant="label-sm" style={{ color: colors.interactionSoftDefault }}>
-                {events.items.length + sessionEvents.length}
+            <Box
+              style={{
+                ...styles.eventsPanelCollapsedCount,
+                backgroundColor: colors.surfaceSecondary,
+              }}
+            >
+              <Text
+                variant="label-sm"
+                style={{ color: colors.interactionSoftDefault }}
+              >
+                {events.items.length + hitoItems.length + filteredSessionEvents.length}
               </Text>
             </Box>
           </Box>
@@ -383,13 +493,25 @@ export const FlightInfoEventsPanel = ({
 
   // ── Expanded ──────────────────────────────────────────────────────────────
   return (
-    <Box style={{ ...styles.eventsPanel, borderLeftColor: colors.borderPrimary }}>
+    <Box
+      style={{ ...styles.eventsPanel, borderLeftColor: colors.borderPrimary }}
+    >
       {/* Header */}
-      <Box style={{ ...styles.eventsPanelHeader, borderBottomColor: colors.borderPrimary }}>
+      <Box
+        style={{
+          ...styles.eventsPanelHeader,
+          borderBottomColor: colors.borderPrimary,
+        }}
+      >
         <button
           type="button"
           onClick={() => setIsExpanded(false)}
-          style={{ ...styles.eventsPanelToggle, background: 'none', border: 'none', cursor: 'pointer' }}
+          style={{
+            ...styles.eventsPanelToggle,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+          }}
           aria-label="Colapsar eventos de vuelo"
         >
           <DoubleCaretRightOutlined size={24} color={colors.textPrimary} />
@@ -398,7 +520,9 @@ export const FlightInfoEventsPanel = ({
       </Box>
 
       {/* Tabs — only Hitos and Alertas */}
-      <Box style={{ ...styles.tabsBar, borderBottomColor: colors.borderPrimary }}>
+      <Box
+        style={{ ...styles.tabsBar, borderBottomColor: colors.borderPrimary }}
+      >
         {TABS.map((tab) => {
           const isActive = tab.key === activeTab;
           return (
@@ -408,19 +532,31 @@ export const FlightInfoEventsPanel = ({
               role="tab"
               aria-selected={isActive}
               onClick={() => handleTabPress(tab.key)}
-              style={{ ...styles.tabItem, background: 'none', border: 'none', cursor: 'pointer' }}
+              style={{
+                ...styles.tabItem,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
               <Text
                 variant="label-sm"
                 style={{
-                  color:      isActive ? colors.interactionSoftDefault : colors.textSecondary,
+                  color: isActive
+                    ? colors.interactionSoftDefault
+                    : colors.textSecondary,
                   fontWeight: isActive ? '700' : '400',
                 }}
               >
                 {tab.label}
               </Text>
               {isActive && (
-                <div style={{ ...styles.tabActiveIndicator, backgroundColor: colors.interactionSoftDefault }} />
+                <div
+                  style={{
+                    ...styles.tabActiveIndicator,
+                    backgroundColor: colors.interactionSoftDefault,
+                  }}
+                />
               )}
             </button>
           );
@@ -428,10 +564,19 @@ export const FlightInfoEventsPanel = ({
       </Box>
 
       {/* Content */}
-      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         {activeTab === 'hitos' ? (
           <HitosList
             items={events.items ?? []}
+            hitoItems={hitoItems}
+            filteredSessionEvents={filteredSessionEvents}
             emptyMessage={events.emptyMessage}
             colors={colors}
           />

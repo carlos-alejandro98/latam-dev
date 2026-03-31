@@ -17,8 +17,10 @@ import { addSessionEvent } from '@/store/slices/session-events-slice';
 
 import type { TabletTaskStatusTone } from '../view-models/tablet-flight-detail-view-model';
 
-const SYNC_DELAY_MS = 2600;
-const LOCAL_OVERRIDE_TTL_MS = 6000;
+/** Tiempo que el override optimista cubre datos del servidor aún no actualizados por el worker */
+const LOCAL_OVERRIDE_TTL_MS = 180_000;
+
+const SYNC_DELAY_MS = 4000;
 
 export type FlightTaskActionTarget = {
   instanceId: string;
@@ -145,7 +147,6 @@ export const useFlightTaskActions = ({
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
       }
-
       Object.values(clearOverrideTimeoutsRef.current).forEach(clearTimeout);
     };
   }, []);
@@ -202,11 +203,9 @@ export const useFlightTaskActions = ({
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
     }
-
     if (!flight?.flightId) {
       return;
     }
-
     syncTimeoutRef.current = setTimeout(() => {
       void loadFlightGantt(flight.flightId);
       syncTimeoutRef.current = null;
@@ -217,12 +216,10 @@ export const useFlightTaskActions = ({
     if (!flight?.flightId) {
       return;
     }
-
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
       syncTimeoutRef.current = null;
     }
-
     void loadFlightGantt(flight.flightId);
   }, [flight?.flightId, loadFlightGantt]);
 
@@ -444,10 +441,41 @@ export const useFlightTaskActions = ({
     ],
   );
 
+  /** Breve pausa entre start y finish del HITO para que el backend/worker registre el inicio */
+  const HITO_FINISH_DELAY_MS = 600;
+
+  /**
+   * HITO desde botón nativo: inicio + fin. Pausa breve entre APIs; al final un `reloadNow()`
+   * cancela el sync diferido y trae el Gantt una sola vez (evita dos refetch seguidos con datos viejos).
+   */
+  const completeHitoTask = useCallback(
+    async (
+      task: FlightTaskActionTarget,
+      time: string,
+      onlyFinish: boolean,
+    ): Promise<FlightTaskActionResult> => {
+      if (onlyFinish) {
+        return finishTask(task, time);
+      }
+      await startTask(task, time);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, HITO_FINISH_DELAY_MS);
+      });
+      const result = await finishTask(
+        { ...task, startTimeLabel: time },
+        time,
+      );
+      reloadNow();
+      return result;
+    },
+    [finishTask, reloadNow, startTask],
+  );
+
   return {
     startTask,
     finishTask,
     updateTask,
+    completeHitoTask,
     optimisticTasks,
   };
 };

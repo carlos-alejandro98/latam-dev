@@ -19,6 +19,7 @@ export type TaskEditTarget = {
   statusLabel: string;
   startTimeLabel?: string | null;
   endTimeLabel?: string | null;
+  tipoEvento?: string;
 };
 
 export type TaskEditModalController<TTask extends TaskEditTarget> = {
@@ -34,6 +35,7 @@ export type TaskEditModalController<TTask extends TaskEditTarget> = {
   actionLoading: boolean;
   actionError?: string;
   isReadOnly: boolean;
+  isHito: boolean;
   canSendComment: boolean;
   canPerformPrimaryAction: boolean;
   canResetTask: boolean;
@@ -82,7 +84,14 @@ const normalizeTimeInput = (value: string): string => {
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 };
 
-const getPrimaryActionLabel = (tone: TaskEditTarget['statusTone']): string => {
+const getPrimaryActionLabel = (
+  tone: TaskEditTarget['statusTone'],
+  isHito: boolean,
+): string => {
+  if (isHito) {
+    return tone === 'completed' ? 'Actualizar' : 'Completar';
+  }
+
   if (tone === 'completed') {
     return 'Actualizar';
   }
@@ -173,24 +182,34 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
     : '';
   const isCompleted = editingTask?.statusTone === 'completed';
   const isInProgress = editingTask?.statusTone === 'in_progress';
-  const isStartEditable =
-    Boolean(editingTask) &&
-    canManageTaskActions &&
-    !isInProgress &&
-    !actionLoading;
-  const isEndEditable =
-    Boolean(editingTask) &&
-    canManageTaskActions &&
-    (isInProgress || isCompleted) &&
-    !actionLoading;
-  const hasTaskAction =
-    Boolean(editingTask) &&
-    (editingTask?.statusTone === 'pending'
-      ? editStartTime.trim().length > 0
-      : editingTask?.statusTone === 'in_progress'
-        ? editEndTime.trim().length > 0
-        : editStartTime !== initialEditStartTime ||
-          editEndTime !== initialEditEndTime);
+  const isHito =
+    editingTask?.tipoEvento?.toUpperCase() === 'HITO';
+
+  const isStartEditable = isHito
+    ? false
+    : Boolean(editingTask) &&
+      canManageTaskActions &&
+      !isInProgress &&
+      !actionLoading;
+  const isEndEditable = isHito
+    ? Boolean(editingTask) && canManageTaskActions && !actionLoading
+    : Boolean(editingTask) &&
+      canManageTaskActions &&
+      (isInProgress || isCompleted) &&
+      !actionLoading;
+
+  const hasTaskAction = isHito
+    ? Boolean(editingTask) &&
+      (isCompleted
+        ? editEndTime !== initialEditEndTime
+        : editEndTime.trim().length > 0)
+    : Boolean(editingTask) &&
+      (editingTask?.statusTone === 'pending'
+        ? editStartTime.trim().length > 0
+        : editingTask?.statusTone === 'in_progress'
+          ? editEndTime.trim().length > 0
+          : editStartTime !== initialEditStartTime ||
+            editEndTime !== initialEditEndTime);
   const canPerformPrimaryAction =
     Boolean(editingTask) &&
     !actionLoading &&
@@ -246,12 +265,26 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
 
     void (async () => {
       if (canManageTaskActions && hasTaskAction) {
-        const result =
-          editingTask.statusTone === 'pending'
-            ? await onStartTask(editingTask, editStartTime)
-            : editingTask.statusTone === 'in_progress'
-              ? await onFinishTask(editingTask, editEndTime)
-              : await onUpdateTask(editingTask, editStartTime, editEndTime);
+        let result: FlightTaskActionResult;
+
+        if (isHito) {
+          if (isCompleted) {
+            result = await onUpdateTask(editingTask, editEndTime, editEndTime);
+          } else {
+            await onStartTask(editingTask, editEndTime);
+            result = await onFinishTask(
+              { ...editingTask, startTimeLabel: editEndTime },
+              editEndTime,
+            );
+          }
+        } else {
+          result =
+            editingTask.statusTone === 'pending'
+              ? await onStartTask(editingTask, editStartTime)
+              : editingTask.statusTone === 'in_progress'
+                ? await onFinishTask(editingTask, editEndTime)
+                : await onUpdateTask(editingTask, editStartTime, editEndTime);
+        }
 
         applyTaskResult(result);
       }
@@ -349,6 +382,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
       actionLoading,
       actionError,
       isReadOnly,
+      isHito: Boolean(isHito),
       canSendComment,
       canPerformPrimaryAction,
       canResetTask,
@@ -356,6 +390,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
       isEndEditable,
       primaryActionLabel: getPrimaryActionLabel(
         editingTask?.statusTone ?? 'pending',
+        Boolean(isHito),
       ),
       taskStatusLabel: editingTask?.statusLabel ?? 'Pendiente',
       taskStatusTone: editingTask?.statusTone ?? 'pending',

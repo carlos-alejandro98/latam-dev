@@ -214,7 +214,7 @@ describe('createFlightInfoPanelViewModel', () => {
           estado: 'IN_PROGRESS',
           finReal: null,
           duracionReal: null,
-          finCalculado: [2025, 12, 1, 10, 10],
+          finCalculado: [2025, 12, 1, 10, 30],
         }),
       ]),
       new Date('2025-12-01T10:20:00').getTime(),
@@ -232,5 +232,47 @@ describe('createFlightInfoPanelViewModel', () => {
       label: 'ETD',
       value: '----',
     });
+  });
+
+  it('uses programmed task times as the default source for event labels and ordering', () => {
+    const viewModel = createFlightInfoPanelViewModel(
+      baseFlight,
+      buildGantt([
+        buildTask({
+          taskId: 'task-late',
+          instanceId: 'task-instance-late',
+          taskName: 'Late by calc',
+          inicioReal: null,
+          finReal: null,
+          ultimoEvento: null,
+          inicioProgramado: [2025, 12, 1, 10, 10],
+          finProgramado: [2025, 12, 1, 10, 20],
+          inicioCalculado: [2025, 12, 1, 9, 0],
+          finCalculado: [2025, 12, 1, 9, 10],
+        }),
+        buildTask({
+          taskId: 'task-early',
+          instanceId: 'task-instance-early',
+          taskName: 'Early by schedule',
+          inicioReal: null,
+          finReal: null,
+          ultimoEvento: null,
+          inicioProgramado: [2025, 12, 1, 10, 0],
+          finProgramado: [2025, 12, 1, 10, 10],
+          inicioCalculado: [2025, 12, 1, 10, 30],
+          finCalculado: [2025, 12, 1, 10, 40],
+        }),
+      ]),
+      new Date('2025-12-01T10:00:00').getTime(),
+    );
+
+    expect(viewModel.events.items.map((item) => item.description)).toEqual([
+      'Early by schedule',
+      'Late by calc',
+    ]);
+    expect(viewModel.events.items.map((item) => item.timeLabel)).toEqual([
+      '10:00',
+      '10:10',
+    ]);
   });
 });

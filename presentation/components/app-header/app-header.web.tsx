@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { memo } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { MenuOutlined } from '@hangar/react-icons/core/interaction';
 
 import { Text } from '@/presentation/components/design-system';
@@ -49,14 +49,23 @@ const AppHeaderComponent: React.FC<AppHeaderProps> = ({
         <View style={styles.content}>
           <View style={styles.leftSection}>
             {showMenuButton ? (
-              <Pressable
-                style={styles.menuButton}
-                onPress={onMenuPress}
-                accessibilityLabel="Abrir menú"
-                accessibilityRole="button"
-              >
-                <MenuOutlined size={24} color={HEADER_COLORS.iconDefault} />
-              </Pressable>
+              <View style={styles.menuButton}>
+                <View
+                  pointerEvents="none"
+                  style={[
+                    StyleSheet.absoluteFillObject,
+                    styles.menuButtonIconLayer,
+                  ]}
+                >
+                  <MenuOutlined size={24} color={HEADER_COLORS.iconDefault} />
+                </View>
+                <Pressable
+                  style={StyleSheet.absoluteFillObject}
+                  onPress={onMenuPress}
+                  accessibilityLabel="Abrir menú"
+                  accessibilityRole="button"
+                />
+              </View>
             ) : null}
 
             <HeaderLogo showText={showLogoText} isDesktop={showLogoText} />

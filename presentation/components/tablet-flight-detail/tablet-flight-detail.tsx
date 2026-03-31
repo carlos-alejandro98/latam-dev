@@ -16,7 +16,7 @@ import {
   SyncOutlined,
 } from '@hangar/react-native-icons/core/interaction';
 
-import { EditSquareOutlined } from '@/presentation/components/flight-list/icons';
+import { EditSquareOutlined } from '@/presentation/components/common/icons';
 import { Spinner, Text } from '@/presentation/components/design-system';
 import { TaskEditModal } from '@/presentation/components/task-edit-modal/task-edit-modal';
 import type { TaskEditModalController } from '@/presentation/controllers/use-task-edit-modal-controller';
@@ -52,6 +52,11 @@ interface TabletFlightDetailProps {
   onFinishTask: (
     task: TabletFlightTaskViewModel & FlightTaskActionTarget,
     time: string,
+  ) => Promise<unknown>;
+  onCompleteHito?: (
+    task: TabletFlightTaskViewModel & FlightTaskActionTarget,
+    time: string,
+    onlyFinish: boolean,
   ) => Promise<unknown>;
 }
 
@@ -203,6 +208,7 @@ export const TabletFlightDetail = ({
   taskEditModal,
   onStartTask,
   onFinishTask,
+  onCompleteHito,
 }: TabletFlightDetailProps) => {
   const { width } = useWindowDimensions();
   const isMobile = Platform.OS !== 'web' && width < 768;
@@ -284,6 +290,46 @@ export const TabletFlightDetail = ({
     [actionLoading, onFinishTask, taskEditModal.isReadOnly],
   );
 
+  const handleCompleteHito = useCallback(
+    async (task: TabletFlightTaskViewModel) => {
+      if (taskEditModal.isReadOnly || actionLoading) {
+        return;
+      }
+
+      const time = nowHHmm();
+      const onlyFinish = Boolean(task.realStartTime);
+
+      if (onCompleteHito) {
+        setActionLoading(task.instanceId);
+        try {
+          await onCompleteHito(task, time, onlyFinish);
+        } finally {
+          setActionLoading(null);
+        }
+        return;
+      }
+
+      setActionLoading(task.instanceId);
+      try {
+        if (onlyFinish) {
+          await onFinishTask(task, time);
+        } else {
+          await onStartTask(task, time);
+          await onFinishTask({ ...task, startTimeLabel: time }, time);
+        }
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [
+      actionLoading,
+      onCompleteHito,
+      onStartTask,
+      onFinishTask,
+      taskEditModal.isReadOnly,
+    ],
+  );
+
   if (loading && !viewModel) {
     return (
       <View style={styles.detailMessage}>
@@ -357,7 +403,8 @@ export const TabletFlightDetail = ({
                 >
                   {viewModel.header.availableTimeLabel}
                 </Text>
-                {/* <Text
+                {/* MTD oculto por el momento (no prioridad en la entrega actual). Descomentar para volver a mostrar.
+                <Text
                   variant="label-sm"
                   style={{
                     color:
@@ -369,7 +416,8 @@ export const TabletFlightDetail = ({
                   }}
                 >
                   {viewModel.header.mtdLabel}
-                </Text> */}
+                </Text>
+                */}
               </View>
             </View>
           </ScrollView>
@@ -477,70 +525,151 @@ export const TabletFlightDetail = ({
                         <View style={styles.taskBodyRow}>
                           <View style={styles.taskMetricsSummary}>
                             <View style={styles.taskMetricsRow}>
-                              <View style={styles.taskMetric}>
-                                <Text
-                                  variant="heading-xl"
-                                  style={styles.taskMetricValue}
-                                >
-                                  {task.scheduledRangeLabel}
-                                </Text>
-                                <Text
-                                  variant="label-lg"
-                                  style={styles.taskMetricLabel}
-                                >
-                                  Programado
-                                </Text>
-                              </View>
-                              <View style={styles.taskMetricDivider} />
-                              <View style={styles.taskMetric}>
-                                <Text
-                                  variant="heading-xl"
-                                  style={styles.taskMetricValue}
-                                >
-                                  {task.startTimeLabel}
-                                </Text>
-                                <Text
-                                  variant="label-lg"
-                                  style={styles.taskMetricLabel}
-                                >
-                                  Inicio
-                                </Text>
-                              </View>
-                              <View style={styles.taskMetricDivider} />
-                              <View style={styles.taskMetric}>
-                                <Text
-                                  variant="heading-xl"
-                                  style={styles.taskMetricValue}
-                                >
-                                  {task.endTimeLabel}
-                                </Text>
-                                <Text
-                                  variant="label-lg"
-                                  style={styles.taskMetricLabel}
-                                >
-                                  Termino
-                                </Text>
-                              </View>
-                              <View style={styles.taskMetricDivider} />
-                              <View style={styles.taskMetric}>
-                                <Text
-                                  variant="heading-xl"
-                                  style={styles.taskMetricValue}
-                                >
-                                  {task.durationLabel}
-                                </Text>
-                                <Text
-                                  variant="label-lg"
-                                  style={styles.taskMetricLabel}
-                                >
-                                  Tempo en curso
-                                </Text>
-                              </View>
+                              {task.tipoEvento?.toUpperCase() === 'HITO' ? (
+                                <>
+                                  <View style={styles.taskMetric}>
+                                    <Text
+                                      variant="heading-xl"
+                                      style={styles.taskMetricValue}
+                                    >
+                                      {task.scheduledRangeLabel.split(' - ')[0] ?? '--'}
+                                    </Text>
+                                    <Text
+                                      variant="label-lg"
+                                      style={styles.taskMetricLabel}
+                                    >
+                                      Programado
+                                    </Text>
+                                  </View>
+                                  <View style={styles.taskMetricDivider} />
+                                  <View style={styles.taskMetric}>
+                                    <Text
+                                      variant="heading-xl"
+                                      style={styles.taskMetricValue}
+                                    >
+                                      {task.startTimeLabel}
+                                    </Text>
+                                    <Text
+                                      variant="label-lg"
+                                      style={styles.taskMetricLabel}
+                                    >
+                                      Hora de Marco
+                                    </Text>
+                                  </View>
+                                </>
+                              ) : (
+                                <>
+                                  <View style={styles.taskMetric}>
+                                    <Text
+                                      variant="heading-xl"
+                                      style={styles.taskMetricValue}
+                                    >
+                                      {task.scheduledRangeLabel}
+                                    </Text>
+                                    <Text
+                                      variant="label-lg"
+                                      style={styles.taskMetricLabel}
+                                    >
+                                      Programado
+                                    </Text>
+                                  </View>
+                                  <View style={styles.taskMetricDivider} />
+                                  <View style={styles.taskMetric}>
+                                    <Text
+                                      variant="heading-xl"
+                                      style={styles.taskMetricValue}
+                                    >
+                                      {task.startTimeLabel}
+                                    </Text>
+                                    <Text
+                                      variant="label-lg"
+                                      style={styles.taskMetricLabel}
+                                    >
+                                      Inicio
+                                    </Text>
+                                  </View>
+                                  <View style={styles.taskMetricDivider} />
+                                  <View style={styles.taskMetric}>
+                                    <Text
+                                      variant="heading-xl"
+                                      style={styles.taskMetricValue}
+                                    >
+                                      {task.endTimeLabel}
+                                    </Text>
+                                    <Text
+                                      variant="label-lg"
+                                      style={styles.taskMetricLabel}
+                                    >
+                                      Termino
+                                    </Text>
+                                  </View>
+                                  <View style={styles.taskMetricDivider} />
+                                  <View style={styles.taskMetric}>
+                                    <Text
+                                      variant="heading-xl"
+                                      style={styles.taskMetricValue}
+                                    >
+                                      {task.durationLabel}
+                                    </Text>
+                                    <Text
+                                      variant="label-lg"
+                                      style={styles.taskMetricLabel}
+                                    >
+                                      Tempo en curso
+                                    </Text>
+                                  </View>
+                                </>
+                              )}
                             </View>
                           </View>
 
                           <View style={styles.taskActionWrap}>
-                            {task.statusTone === 'completed' ? (
+                            {task.tipoEvento?.toUpperCase() === 'HITO' ? (
+                              task.statusTone === 'completed' ? (
+                                <View
+                                  style={[
+                                    styles.taskAction,
+                                    styles.taskActionCompleted,
+                                  ]}
+                                >
+                                  <Text
+                                    variant="heading-xs"
+                                    style={styles.taskActionBtnFinalizadoText}
+                                  >
+                                    Marco finalizado
+                                  </Text>
+                                </View>
+                              ) : (
+                                <Pressable
+                                  style={[
+                                    styles.taskAction,
+                                    { backgroundColor: '#6B0FC7' },
+                                    (isActing || taskEditModal.isReadOnly) &&
+                                      styles.taskActionBtnDisabled,
+                                  ]}
+                                  disabled={isActing || taskEditModal.isReadOnly}
+                                  onPress={() => {
+                                    if (!isActing && !taskEditModal.isReadOnly) {
+                                      void handleCompleteHito(task);
+                                    }
+                                  }}
+                                >
+                                  {isActing ? (
+                                    <ActivityIndicator
+                                      size="small"
+                                      color="#ffffff"
+                                    />
+                                  ) : (
+                                    <Text
+                                      variant="heading-xs"
+                                      style={styles.taskActionBtnText}
+                                    >
+                                      Marcar Marco
+                                    </Text>
+                                  )}
+                                </Pressable>
+                              )
+                            ) : task.statusTone === 'completed' ? (
                               <View
                                 style={[
                                   styles.taskAction,

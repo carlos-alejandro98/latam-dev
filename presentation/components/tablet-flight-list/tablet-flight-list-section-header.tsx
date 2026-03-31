@@ -3,16 +3,14 @@ import { View } from 'react-native';
 
 import { AppPressable } from '@/presentation/components/common/app-pressable';
 import {
+  ChevronDownOutlined,
+  ChevronUpOutlined,
   FlightAirport,
   FlightTop,
-} from '@/presentation/components/flight-list/icons';
+} from '@/presentation/components/common/icons';
 import type { PanelColors } from '@/presentation/components/flight-list/flight-list.types';
 import type { SectionId } from '@/presentation/hooks/use-flight-virtualized-data';
 import { TabletText as Text } from '@/presentation/components/tablet/tablet-text';
-import {
-  ChevronDownOutlined,
-  ChevronUpOutlined,
-} from '@/presentation/components/flight-list/icons';
 
 import { styles } from './tablet-flight-list.styles.runtime';
 

@@ -167,19 +167,9 @@ const ganttDateTimeToTimestamp = (value?: GanttDateTime): number | null => {
 };
 
 const getPlannedEndTimestamp = (task: FlightGanttTask): number | null => {
-  const calculatedEnd = ganttDateTimeToTimestamp(task.finCalculado);
-  if (calculatedEnd !== null) {
-    return calculatedEnd;
-  }
-
   const plannedEnd = ganttDateTimeToTimestamp(task.finProgramado);
   if (plannedEnd !== null) {
     return plannedEnd;
-  }
-
-  const calculatedStart = ganttDateTimeToTimestamp(task.inicioCalculado);
-  if (calculatedStart !== null) {
-    return calculatedStart + task.duracionPlanificada * 60_000;
   }
 
   const plannedStart = ganttDateTimeToTimestamp(task.inicioProgramado);
@@ -187,28 +177,38 @@ const getPlannedEndTimestamp = (task: FlightGanttTask): number | null => {
     return plannedStart + task.duracionPlanificada * 60_000;
   }
 
+  const calculatedEnd = ganttDateTimeToTimestamp(task.finCalculado);
+  if (calculatedEnd !== null) {
+    return calculatedEnd;
+  }
+
+  const calculatedStart = ganttDateTimeToTimestamp(task.inicioCalculado);
+  if (calculatedStart !== null) {
+    return calculatedStart + task.duracionPlanificada * 60_000;
+  }
+
   return null;
 };
 
 const getPlannedStartTimestamp = (task: FlightGanttTask): number | null => {
-  const calculatedStart = ganttDateTimeToTimestamp(task.inicioCalculado);
-  if (calculatedStart !== null) {
-    return calculatedStart;
-  }
-
   const plannedStart = ganttDateTimeToTimestamp(task.inicioProgramado);
   if (plannedStart !== null) {
     return plannedStart;
   }
 
-  const calculatedEnd = ganttDateTimeToTimestamp(task.finCalculado);
-  if (calculatedEnd !== null) {
-    return calculatedEnd - task.duracionPlanificada * 60_000;
-  }
-
   const plannedEnd = ganttDateTimeToTimestamp(task.finProgramado);
   if (plannedEnd !== null) {
     return plannedEnd - task.duracionPlanificada * 60_000;
+  }
+
+  const calculatedStart = ganttDateTimeToTimestamp(task.inicioCalculado);
+  if (calculatedStart !== null) {
+    return calculatedStart;
+  }
+
+  const calculatedEnd = ganttDateTimeToTimestamp(task.finCalculado);
+  if (calculatedEnd !== null) {
+    return calculatedEnd - task.duracionPlanificada * 60_000;
   }
 
   return null;

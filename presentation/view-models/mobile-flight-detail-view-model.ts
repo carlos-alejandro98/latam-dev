@@ -41,6 +41,7 @@ export interface MobileFlightProcessViewModel {
   estimatedValue: string;
   isStarted: boolean;
   isFinished: boolean;
+  tipoEvento: string;
 }
 
 export interface MobileFlightDetailViewModel {
@@ -258,6 +259,7 @@ export const createMobileFlightDetailViewModel = (
         ),
         isStarted: hasRealTime(task.startTimeLabel),
         isFinished: hasRealTime(task.endTimeLabel),
+        tipoEvento: task.tipoEvento,
       };
     }),
   };

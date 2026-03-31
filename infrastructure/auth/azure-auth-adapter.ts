@@ -2,7 +2,12 @@ import * as ExpoAuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 
 import type { AuthProviderPort } from '@/application/ports/auth-provider-port';
-import { AUTH_CONFIG, getRedirectUri } from '@/config/auth.config';
+import {
+  AUTH_CONFIG,
+  getAuthClientId,
+  getAuthDiscovery,
+  getRedirectUri,
+} from '@/config/auth.config';
 import { IS_WEB } from '@/config/platform';
 import type { AuthSession } from '@/domain/entities/auth-session';
 import { AuthError } from '@/domain/errors/auth-error';
@@ -20,7 +25,11 @@ const mapTokenResponseToSession = (
   tokenResponse: ExpoAuthSession.TokenResponse,
   fallbackRefreshToken?: string,
 ): AuthSession => {
-  if (!tokenResponse.accessToken || !tokenResponse.idToken || !tokenResponse.expiresIn) {
+  if (
+    !tokenResponse.accessToken ||
+    !tokenResponse.idToken ||
+    !tokenResponse.expiresIn
+  ) {
     throw new AuthError(
       'Azure AD did not return the required token payload',
       'AUTH_LOGIN_FAILED',
@@ -67,9 +76,11 @@ export class AzureAuthAdapter implements AuthProviderPort {
    */
   async login(): Promise<AuthSession> {
     const redirectUri = getRedirectUri();
+    const clientId = getAuthClientId();
+    const discovery = getAuthDiscovery();
 
     const request = new ExpoAuthSession.AuthRequest({
-      clientId: AUTH_CONFIG.clientId,
+      clientId,
       scopes: [...AUTH_CONFIG.scopes],
       redirectUri,
       responseType: ExpoAuthSession.ResponseType.Code,
@@ -79,7 +90,7 @@ export class AzureAuthAdapter implements AuthProviderPort {
       },
     });
 
-    const authUrl = await request.makeAuthUrlAsync(AUTH_CONFIG.discovery);
+    const authUrl = await request.makeAuthUrlAsync(discovery);
 
     if (IS_WEB) {
       // Store PKCE verifier for later token exchange
@@ -89,36 +100,45 @@ export class AzureAuthAdapter implements AuthProviderPort {
       // Redirect to Azure AD (full page redirect avoids COOP issues)
       window.location.href = authUrl;
       // Return a never-resolving promise since we're redirecting
-      return new Promise(() => { });
+      return new Promise(() => {});
     }
 
     // Native flow: use popup
-    const result = await request.promptAsync(AUTH_CONFIG.discovery);
+    const result = await request.promptAsync(discovery);
 
     if (result.type === 'cancel' || result.type === 'dismiss') {
-      throw new AuthError('The Azure AD login flow was cancelled', 'AUTH_LOGIN_CANCELLED');
+      throw new AuthError(
+        'The Azure AD login flow was cancelled',
+        'AUTH_LOGIN_CANCELLED',
+      );
     }
 
     if (result.type !== 'success') {
-      throw new AuthError('The Azure AD login flow failed', 'AUTH_LOGIN_FAILED');
+      throw new AuthError(
+        'The Azure AD login flow failed',
+        'AUTH_LOGIN_FAILED',
+      );
     }
 
     try {
       const tokenResponse = await ExpoAuthSession.exchangeCodeAsync(
         {
-          clientId: AUTH_CONFIG.clientId,
+          clientId,
           code: result.params.code,
           redirectUri,
           extraParams: {
             code_verifier: request.codeVerifier ?? '',
           },
         },
-        AUTH_CONFIG.discovery,
+        discovery,
       );
 
       return mapTokenResponseToSession(tokenResponse);
     } catch {
-      throw new AuthError('The Azure AD code exchange failed', 'AUTH_LOGIN_FAILED');
+      throw new AuthError(
+        'The Azure AD code exchange failed',
+        'AUTH_LOGIN_FAILED',
+      );
     }
   }
 
@@ -140,9 +160,9 @@ export class AzureAuthAdapter implements AuthProviderPort {
 
     try {
       // Exchange code directly with Azure AD token endpoint using PKCE
-      const tokenEndpoint = AUTH_CONFIG.discovery.tokenEndpoint;
+      const tokenEndpoint = getAuthDiscovery().tokenEndpoint;
       const body = new URLSearchParams({
-        client_id: AUTH_CONFIG.clientId,
+        client_id: getAuthClientId(),
         grant_type: 'authorization_code',
         code,
         redirect_uri: redirectUri,
@@ -156,7 +176,7 @@ export class AzureAuthAdapter implements AuthProviderPort {
         body: body.toString(),
       });
 
-      const tokenData = await response.json() as {
+      const tokenData = (await response.json()) as {
         access_token?: string;
         id_token?: string;
         refresh_token?: string;
@@ -166,10 +186,18 @@ export class AzureAuthAdapter implements AuthProviderPort {
       };
 
       if (!response.ok || tokenData.error) {
-        throw new Error(tokenData.error_description ?? tokenData.error ?? 'Token exchange failed');
+        throw new Error(
+          tokenData.error_description ??
+            tokenData.error ??
+            'Token exchange failed',
+        );
       }
 
-      if (!tokenData.access_token || !tokenData.id_token || !tokenData.expires_in) {
+      if (
+        !tokenData.access_token ||
+        !tokenData.id_token ||
+        !tokenData.expires_in
+      ) {
         throw new Error('Azure AD did not return the required token fields');
       }
 
@@ -180,7 +208,8 @@ export class AzureAuthAdapter implements AuthProviderPort {
         expiresAt: Date.now() + tokenData.expires_in * 1000,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Token exchange failed';
+      const message =
+        error instanceof Error ? error.message : 'Token exchange failed';
       throw new AuthError(message, 'AUTH_LOGIN_FAILED');
     }
   }
@@ -189,10 +218,10 @@ export class AzureAuthAdapter implements AuthProviderPort {
     try {
       const tokenResponse = await ExpoAuthSession.refreshAsync(
         {
-          clientId: AUTH_CONFIG.clientId,
+          clientId: getAuthClientId(),
           refreshToken,
         },
-        AUTH_CONFIG.discovery,
+        getAuthDiscovery(),
       );
 
       return mapTokenResponseToSession(tokenResponse, refreshToken);

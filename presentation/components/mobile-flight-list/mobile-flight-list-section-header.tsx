@@ -7,7 +7,7 @@ import {
   ChevronUpOutlined,
   FlightAirport,
   FlightTop,
-} from '@/presentation/components/flight-list/icons';
+} from '@/presentation/components/common/icons';
 import type { PanelColors } from '@/presentation/components/flight-list/flight-list.types';
 import type { SectionId } from '@/presentation/hooks/use-flight-virtualized-data';
 import { MobileText as Text } from '@/presentation/components/mobile/mobile-text';

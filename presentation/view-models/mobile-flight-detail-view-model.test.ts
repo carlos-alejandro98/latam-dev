@@ -150,8 +150,30 @@ describe('createMobileFlightDetailViewModel', () => {
 
     expect(result.processCards[0].instanceId).toBe('task-instance-1');
     expect(result.processCards[0].statusLabel).toBe('En progreso');
-    expect(result.processCards[0].plannedStartTime).toBe('10:02');
-    expect(result.processCards[0].plannedEndTime).toBe('10:12');
+    expect(result.processCards[0].plannedStartTime).toBe('10:00');
+    expect(result.processCards[0].plannedEndTime).toBe('10:10');
+    expect(result.processCards[0].startTimeLabel).toBe('10:04');
+    expect(result.processCards[0].endTimeLabel).toBe('--:--');
+  });
+
+  it('uses only real times for Inicio/Termino on cards when inicioReal/finReal are null', () => {
+    const result = createMobileFlightDetailViewModel(
+      baseFlight,
+      buildGantt([
+        buildTask({
+          inicioReal: null,
+          finReal: null,
+          estado: 'PENDING',
+          deberiaEstarEnProgreso: false,
+          progresoActual: 0,
+        }),
+      ]),
+    );
+
+    expect(result.processCards[0].startTimeLabel).toBe('--:--');
+    expect(result.processCards[0].endTimeLabel).toBe('--:--');
+    expect(result.processCards[0].isStarted).toBe(false);
+    expect(result.processCards[0].isFinished).toBe(false);
   });
 
   it('exposes the last event time from gantt tasks for the mobile summary section', () => {
@@ -170,7 +192,7 @@ describe('createMobileFlightDetailViewModel', () => {
     );
   });
 
-  it('shows ETD as fallback once push back exists', () => {
+  it('keeps the ETD value even once push back exists', () => {
     const result = createMobileFlightDetailViewModel(
       {
         ...baseFlight,
@@ -179,6 +201,6 @@ describe('createMobileFlightDetailViewModel', () => {
       null,
     );
 
-    expect(result.departure.primaryStats.find((stat) => stat.label === 'ETD')?.value).toBe('--:--');
+    expect(result.departure.primaryStats.find((stat) => stat.label === 'ETD')?.value).toBe('06:50');
   });
 });

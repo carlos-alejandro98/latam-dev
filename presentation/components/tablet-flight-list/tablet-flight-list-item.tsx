@@ -3,7 +3,7 @@ import { View } from 'react-native';
 
 import type { Flight } from '@/domain/entities/flight';
 import { AppPressable } from '@/presentation/components/common/app-pressable';
-import { FlightLanding } from '@/presentation/components/flight-list/icons';
+import { FlightLanding } from '@/presentation/components/common/icons';
 import type { PanelColors } from '@/presentation/components/flight-list/flight-list.types';
 import { TabletText as Text } from '@/presentation/components/tablet/tablet-text';
 import {

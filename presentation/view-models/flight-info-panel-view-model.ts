@@ -2,6 +2,7 @@ import type { Flight } from '@/domain/entities/flight';
 import type {
   FlightGantt,
   FlightGanttTask,
+  GanttDateTime,
 } from '@/domain/entities/flight-gantt';
 import {
   resolveAvailableTime,
@@ -55,21 +56,30 @@ export interface FlightInfoPanelEventItemViewModel {
   id: string;
   timeLabel: string;
   description: string;
-  source?: string; // badge label e.g. "SIGA"
+  source?: string;
+  eventType?: 'started' | 'finished';
+  isDelayed?: boolean;
+  taskInstanceId?: string;
+  sortTimestamp?: number;
 }
 
 export interface FlightInfoPanelEventsViewModel {
   title: string;
-  items: FlightInfoPanelEventItemViewModel[];       // Hitos
-  alertItems: FlightInfoPanelEventItemViewModel[];  // Alertas
-  chatItems: FlightInfoPanelEventItemViewModel[];   // Chat
+  items: FlightInfoPanelEventItemViewModel[]; // Tareas SIGA
+  hitoItems: FlightInfoPanelEventItemViewModel[]; // Eventos inicio/fin real
+  alertItems: FlightInfoPanelEventItemViewModel[]; // Alertas
+  chatItems: FlightInfoPanelEventItemViewModel[]; // Chat
   emptyMessage: string;
 }
 
 export interface FlightInfoPanelTimelineViewModel {
+  staDate?: string | null;
   staTime?: string | null;
+  etaDate?: string | null;
+  etaTime?: string | null;
   stdDate?: string | null;
   stdTime?: string | null;
+  etdDate?: string | null;
   etdTime?: string | null;
   pushOutTime?: string | null;
   tatVueloMinutos?: number | null;
@@ -83,6 +93,8 @@ export interface FlightInfoPanelSubBarViewModel {
   pnaeDeparture: string;
   paxCnxDeparture: string;
   bagsCnxDeparture: string;
+  wchrArrival: string;
+  wchrDeparture: string;
   routeType: string | null; // e.g. "DOM - INTER"
   tempoPlan: string | null; // e.g. "1:05"
 }
@@ -203,10 +215,11 @@ const formatCount = (value?: number | null): string => {
 const getEventTimeLabel = (task: FlightGanttTask): string => {
   return formatTimeValue(
     task.ultimoEvento ??
-    task.inicioReal ??
-    task.inicioCalculado ??
-    task.inicioProgramado ??
-    task.finProgramado,
+      task.inicioReal ??
+      task.inicioProgramado ??
+      task.finProgramado ??
+      task.inicioCalculado ??
+      task.finCalculado,
   );
 };
 
@@ -214,9 +227,10 @@ const getComparableTaskTimestamp = (task: FlightGanttTask): number => {
   const dateTime =
     task.ultimoEvento ??
     task.inicioReal ??
-    task.inicioCalculado ??
     task.inicioProgramado ??
-    task.finProgramado;
+    task.finProgramado ??
+    task.inicioCalculado ??
+    task.finCalculado;
 
   if (!dateTime) {
     return Number.MAX_SAFE_INTEGER;
@@ -235,7 +249,7 @@ const sortTasksByTimeline = (tasks: FlightGanttTask[]): FlightGanttTask[] => {
   });
 };
 
-const buildMilestoneItems = (
+const buildSigaItems = (
   tasks: FlightGanttTask[],
 ): FlightInfoPanelEventItemViewModel[] => {
   return sortTasksByTimeline(tasks).map((task) => ({
@@ -244,6 +258,56 @@ const buildMilestoneItems = (
     description: task.taskName,
     source: 'SIGA',
   }));
+};
+
+const ganttDateTimeToMs = (dt: GanttDateTime): number => {
+  if (!dt) return Number.MAX_SAFE_INTEGER;
+  const [year, month, day, hours, minutes] = dt;
+  return new Date(year, month - 1, day, hours, minutes).getTime();
+};
+
+const buildHitoItems = (
+  tasks: FlightGanttTask[],
+): FlightInfoPanelEventItemViewModel[] => {
+  const items: FlightInfoPanelEventItemViewModel[] = [];
+
+  for (const task of tasks) {
+    if (task.inicioReal) {
+      const delayMin = Math.max(0, task.varianzaInicio ?? 0);
+      const isDelayed = delayMin > 0;
+      const suffix = isDelayed ? ` (${delayMin} min de demora)` : ' a tiempo';
+
+      items.push({
+        id: `${task.instanceId}-start`,
+        timeLabel: formatTimeValue(task.inicioReal),
+        description: `Iniciado${suffix}: ${task.taskName}`,
+        source: 'INICIO',
+        eventType: 'started',
+        isDelayed,
+        taskInstanceId: task.instanceId,
+        sortTimestamp: ganttDateTimeToMs(task.inicioReal),
+      });
+    }
+
+    if (task.finReal) {
+      const delayMin = Math.max(0, task.varianzaFin ?? 0);
+      const isDelayed = delayMin > 0;
+      const suffix = isDelayed ? ` (${delayMin} min de demora)` : ' a tiempo';
+
+      items.push({
+        id: `${task.instanceId}-end`,
+        timeLabel: formatTimeValue(task.finReal),
+        description: `Finalizado${suffix}: ${task.taskName}`,
+        source: 'FIN',
+        eventType: 'finished',
+        isDelayed,
+        taskInstanceId: task.instanceId,
+        sortTimestamp: ganttDateTimeToMs(task.finReal),
+      });
+    }
+  }
+
+  return items.sort((a, b) => (a.sortTimestamp ?? 0) - (b.sortTimestamp ?? 0));
 };
 
 const getMinutesDiff = (
@@ -284,9 +348,7 @@ export const createFlightInfoPanelViewModel = (
   const numberDeparture =
     flight.numberDeparture ?? ganttFlight?.numberDeparture ?? FALLBACK_TEXT;
   const prefix =
-    ganttFlight?.aircraftPrefix ||
-    flight.aircraftPrefix ||
-    FALLBACK_TEXT;
+    ganttFlight?.aircraftPrefix || flight.aircraftPrefix || FALLBACK_TEXT;
   const arrivalPark =
     ganttFlight?.parkPositionArrival ??
     flight.parkPositionArrival ??
@@ -302,7 +364,8 @@ export const createFlightInfoPanelViewModel = (
     ganttFlight?.estimatedPushIn ??
     flight.estimatedPushIn ??
     flight.pushIn;
-  const pushOutValue = flight.pushOut ?? flight.etdTime;
+  /** Solo `pushOut` de API — no usar ETD como sustituto (PUSH-BACK ≠ ETD). */
+  const pushOutValue = flight.pushOut;
   const isArrivalReal = Boolean(ganttFlight?.ata ?? flight.ata);
   const tatMinutes =
     ganttSummary?.tatVueloMinutos ??
@@ -371,7 +434,10 @@ export const createFlightInfoPanelViewModel = (
       station: destination,
       infoItems: [
         { label: 'STD', value: formatTimeValue(flight.stdTime) },
-        { label: 'ETD', value: formatEtdDisplayValue(flight.stdTime, flight.etdTime) },
+        {
+          label: 'ETD',
+          value: formatEtdDisplayValue(flight.stdTime, flight.etdTime),
+        },
         { label: 'BOX', value: departureBox },
         { label: 'PORTÃO', value: boardingGate },
       ],
@@ -393,8 +459,7 @@ export const createFlightInfoPanelViewModel = (
         timelineTasks.length > 0 &&
         timelineTasks.every(
           (t) =>
-            Boolean(t.finReal) ||
-            t.estado.toUpperCase().trim() === 'COMPLETED',
+            Boolean(t.finReal) || t.estado.toUpperCase().trim() === 'COMPLETED',
         ),
     },
     subBar: {
@@ -404,13 +469,19 @@ export const createFlightInfoPanelViewModel = (
       pnaeDeparture: formatCount(flight.wchrDeparture),
       paxCnxDeparture: formatCount(flight.paxCnxDeparture),
       bagsCnxDeparture: formatCount(flight.bagsCnxDeparture),
+      wchrArrival: formatCount(flight.wchrArrival),
+      wchrDeparture: formatCount(flight.wchrDeparture),
       routeType: ganttFlight?.tatType ?? flight.tatType ?? null,
       tempoPlan: formatMinutesToTime(tatMinutes),
     },
     timeline: {
+      staDate: flight.staDate,
       staTime: flight.staTime,
+      etaDate: flight.etaDate,
+      etaTime: flight.etaTime,
       stdDate: flight.stdDate,
       stdTime: flight.stdTime,
+      etdDate: flight.etdDate,
       etdTime: flight.etdTime,
       pushOutTime: flight.pushOut,
       tasks: timelineTasks,
@@ -418,7 +489,8 @@ export const createFlightInfoPanelViewModel = (
     },
     events: {
       title: 'Eventos de Voo',
-      items: buildMilestoneItems(timelineTasks),
+      items: buildSigaItems(timelineTasks),
+      hitoItems: buildHitoItems(timelineTasks),
       alertItems: [],
       chatItems: [],
       emptyMessage: 'Sin eventos disponibles para este vuelo.',

@@ -161,4 +161,68 @@ describe('createTabletFlightDetailViewModel', () => {
       value: '----',
     });
   });
+
+  it('shows Inicio/Termino labels only from inicioReal/finReal, not calculated times', () => {
+    const result = createTabletFlightDetailViewModel(
+      baseFlight,
+      buildGantt([buildTask()]),
+    );
+
+    const task = result.tasks[0];
+    expect(task.startTimeLabel).toBe('--:--');
+    expect(task.endTimeLabel).toBe('--:--');
+    expect(task.plannedStartTime).toBe('10:00');
+    expect(task.plannedEndTime).toBe('10:10');
+  });
+
+  it('sorts pending tasks by programmed time before calculated time', () => {
+    const result = createTabletFlightDetailViewModel(
+      baseFlight,
+      buildGantt([
+        buildTask({
+          taskId: 'task-late',
+          instanceId: 'task-instance-late',
+          taskName: 'Late by calc',
+          inicioProgramado: [2025, 12, 1, 10, 10],
+          finProgramado: [2025, 12, 1, 10, 20],
+          inicioCalculado: [2025, 12, 1, 9, 0],
+          finCalculado: [2025, 12, 1, 9, 10],
+          inicioReal: null,
+          finReal: null,
+        }),
+        buildTask({
+          taskId: 'task-early',
+          instanceId: 'task-instance-early',
+          taskName: 'Early by schedule',
+          inicioProgramado: [2025, 12, 1, 10, 0],
+          finProgramado: [2025, 12, 1, 10, 10],
+          inicioCalculado: [2025, 12, 1, 10, 30],
+          finCalculado: [2025, 12, 1, 10, 40],
+          inicioReal: null,
+          finReal: null,
+        }),
+      ]),
+    );
+
+    expect(result.tasks.map((task) => task.title)).toEqual([
+      'Early by schedule',
+      'Late by calc',
+    ]);
+  });
+
+  it('shows real start/end when inicioReal and finReal are set', () => {
+    const result = createTabletFlightDetailViewModel(
+      baseFlight,
+      buildGantt([
+        buildTask({
+          inicioReal: [2025, 12, 1, 10, 5],
+          finReal: [2025, 12, 1, 10, 20],
+        }),
+      ]),
+    );
+
+    const task = result.tasks[0];
+    expect(task.startTimeLabel).toBe('10:05');
+    expect(task.endTimeLabel).toBe('10:20');
+  });
 });

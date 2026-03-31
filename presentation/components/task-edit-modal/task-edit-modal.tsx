@@ -133,41 +133,63 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
 
             <View style={{ gap: 12 }}>
               <View style={modalStyles.taskEditModalTimeRow}>
-                <View style={modalStyles.taskEditModalField}>
-                  <TextComponent
-                    variant={resolvedVariants.fieldLabel}
-                    style={modalStyles.taskEditModalFieldLabel}
-                  >
-                    {resolvedLabels.startLabel}
-                  </TextComponent>
-                  <TextInput
-                    value={controller.startTime}
-                    onChangeText={controller.changeStartTime}
-                    placeholder="00:00"
-                    placeholderTextColor="#8d8d8d"
-                    style={modalStyles.taskEditModalInput}
-                    editable={controller.isStartEditable}
-                    keyboardType="numbers-and-punctuation"
-                  />
-                </View>
+                {controller.isHito ? (
+                  <View style={modalStyles.taskEditModalField}>
+                    <TextComponent
+                      variant={resolvedVariants.fieldLabel}
+                      style={modalStyles.taskEditModalFieldLabel}
+                    >
+                      Hora
+                    </TextComponent>
+                    <TextInput
+                      value={controller.endTime}
+                      onChangeText={controller.changeEndTime}
+                      placeholder="00:00"
+                      placeholderTextColor="#8d8d8d"
+                      style={modalStyles.taskEditModalInput}
+                      editable={controller.isEndEditable}
+                      keyboardType="numbers-and-punctuation"
+                    />
+                  </View>
+                ) : (
+                  <>
+                    <View style={modalStyles.taskEditModalField}>
+                      <TextComponent
+                        variant={resolvedVariants.fieldLabel}
+                        style={modalStyles.taskEditModalFieldLabel}
+                      >
+                        {resolvedLabels.startLabel}
+                      </TextComponent>
+                      <TextInput
+                        value={controller.startTime}
+                        onChangeText={controller.changeStartTime}
+                        placeholder="00:00"
+                        placeholderTextColor="#8d8d8d"
+                        style={modalStyles.taskEditModalInput}
+                        editable={controller.isStartEditable}
+                        keyboardType="numbers-and-punctuation"
+                      />
+                    </View>
 
-                <View style={modalStyles.taskEditModalField}>
-                  <TextComponent
-                    variant={resolvedVariants.fieldLabel}
-                    style={modalStyles.taskEditModalFieldLabel}
-                  >
-                    {resolvedLabels.endLabel}
-                  </TextComponent>
-                  <TextInput
-                    value={controller.endTime}
-                    onChangeText={controller.changeEndTime}
-                    placeholder="00:00"
-                    placeholderTextColor="#8d8d8d"
-                    style={modalStyles.taskEditModalInput}
-                    editable={controller.isEndEditable}
-                    keyboardType="numbers-and-punctuation"
-                  />
-                </View>
+                    <View style={modalStyles.taskEditModalField}>
+                      <TextComponent
+                        variant={resolvedVariants.fieldLabel}
+                        style={modalStyles.taskEditModalFieldLabel}
+                      >
+                        {resolvedLabels.endLabel}
+                      </TextComponent>
+                      <TextInput
+                        value={controller.endTime}
+                        onChangeText={controller.changeEndTime}
+                        placeholder="00:00"
+                        placeholderTextColor="#8d8d8d"
+                        style={modalStyles.taskEditModalInput}
+                        editable={controller.isEndEditable}
+                        keyboardType="numbers-and-punctuation"
+                      />
+                    </View>
+                  </>
+                )}
               </View>
 
               <TextInput
@@ -248,7 +270,7 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
                   >
                     {controller.actionLoading
                       ? resolvedLabels.submittingLabel
-                      : resolvedLabels.submitLabel}
+                      : controller.primaryActionLabel}
                   </TextComponent>
                 </Pressable>
               </View>

@@ -68,6 +68,11 @@ describe("FlightApiRepository", () => {
     // Assert
     expect(flightsHttpGet).toHaveBeenCalledWith(
       "/api/v1/tracking/active-flights-v2",
+      expect.objectContaining({
+        stdDateFrom: expect.any(String),
+        stdDateTo: expect.any(String),
+      }),
+      undefined,
     );
   });
 
@@ -82,6 +87,7 @@ describe("FlightApiRepository", () => {
       {
         flightId: "JPALA363718/01/2026",
       },
+      undefined,
     );
   });
 

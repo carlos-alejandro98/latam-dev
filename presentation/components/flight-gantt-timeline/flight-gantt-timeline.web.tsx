@@ -28,13 +28,16 @@ import type { TimelineTaskRowData } from './flight-gantt-timeline.types';
 import type {
   MouseEvent as ReactMouseEvent,
   ReactNode,
-  WheelEvent,
 } from 'react';
 
 export type FlightGanttTimelineProps = {
+  staDate?: string | null;
   staTime?: string | null;
+  etaDate?: string | null;
+  etaTime?: string | null;
   stdDate?: string | null;
   stdTime?: string | null;
+  etdDate?: string | null;
   etdTime?: string | null;
   pushOutTime?: string | null;
   tatVueloMinutos?: number | null;
@@ -65,6 +68,7 @@ const buildTimelineRowsView = (
   rows: TimelineTaskRowData[],
   markers: ReturnType<typeof buildTimelineMarkers>,
   ticks: number[],
+  stdMinute: number | null,
   timelineOffset: number,
   timelineViewportWidth: number,
   timelineWidth: number,
@@ -80,6 +84,7 @@ const buildTimelineRowsView = (
         markers={markers}
         rowData={rowData}
         ticks={ticks}
+        stdMinute={stdMinute}
         timelineOffset={timelineOffset}
         timelineViewportWidth={timelineViewportWidth}
         timelineWidth={timelineWidth}
@@ -96,11 +101,14 @@ const buildTimelineRowsView = (
  * Central gantt timeline for calculated vs real task execution.
  */
 export const FlightGanttTimeline = ({
+  staDate,
   staTime,
+  etaDate,
+  etaTime,
   stdDate,
   stdTime,
+  etdDate,
   etdTime,
-  pushOutTime,
   tatVueloMinutos,
   tasks,
   onRowClick,
@@ -117,6 +125,7 @@ export const FlightGanttTimeline = ({
   const timelineViewportRef = useRef<HTMLDivElement | null>(null);
   const verticalScrollRef = useRef<HTMLDivElement | null>(null);
   const verticalScrollContentRef = useRef<HTMLDivElement | null>(null);
+  const pendingHorizontalAutoScrollRef = useRef(true);
   const [timelineViewportWidth, setTimelineViewportWidth] = useState(0);
   const [timelineOffset, setTimelineOffset] = useState(0);
   const [zoomLevelIndex, setZoomLevelIndex] = useState(
@@ -137,12 +146,22 @@ export const FlightGanttTimeline = ({
   const isZoomInDisabled = zoomLevelIndex >= LAST_ZOOM_LEVEL_INDEX;
 
   const handleZoomOut = (): void => {
+    if (isZoomOutDisabled) {
+      return;
+    }
+
+    pendingHorizontalAutoScrollRef.current = true;
     setZoomLevelIndex((currentLevelIndex) => {
       return Math.max(0, currentLevelIndex - 1);
     });
   };
 
   const handleZoomIn = (): void => {
+    if (isZoomInDisabled) {
+      return;
+    }
+
+    pendingHorizontalAutoScrollRef.current = true;
     setZoomLevelIndex((currentLevelIndex) => {
       return Math.min(LAST_ZOOM_LEVEL_INDEX, currentLevelIndex + 1);
     });
@@ -189,10 +208,43 @@ export const FlightGanttTimeline = ({
     };
   }, []);
 
-  // Declare rows here (before useEffects) so hooks can reference it safely
+  const domain = useMemo(
+    () =>
+      buildTimelineDomain(
+        tasks,
+        nowTimestamp,
+        staDate,
+        staTime,
+        etaDate,
+        etaTime,
+        stdDate,
+        stdTime,
+        etdDate,
+        etdTime,
+      ),
+    [
+      tasks,
+      nowTimestamp,
+      staDate,
+      staTime,
+      etaDate,
+      etaTime,
+      stdDate,
+      stdTime,
+      etdDate,
+      etdTime,
+    ],
+  );
+
   const rows = useMemo(
-    () => buildTimelineRows(tasks, stdDate, stdTime, nowTimestamp),
-    [tasks, stdDate, stdTime, nowTimestamp],
+    () =>
+      buildTimelineRows(
+        tasks,
+        domain.timelineStartDateMs,
+        domain.stdMinute,
+        nowTimestamp,
+      ),
+    [tasks, domain.timelineStartDateMs, domain.stdMinute, nowTimestamp],
   );
 
   // Auto-scroll to the bottom of the vertical list whenever a new row is added.
@@ -213,15 +265,23 @@ export const FlightGanttTimeline = ({
     return () => cancelAnimationFrame(frameId);
   }, [rows.length]);
 
-  // Auto-scroll to the first task's start position whenever the tasks change
-  // (i.e. when a new flight is selected). Uses a short rAF delay so the DOM
-  // has finished painting and xScale is stable.
+  // Auto-scroll horizontally once on first load and later only after explicit
+  // zoom actions so the user keeps control during normal browsing.
   useEffect(() => {
-    if (!rows.length) return;
+    if (!pendingHorizontalAutoScrollRef.current) {
+      return;
+    }
+
+    if (!rows.length || timelineViewportWidth <= 0) {
+      return;
+    }
 
     const scrollToInitialPosition = (): void => {
       const horizontalContainer = topHorizontalScrollRef.current;
-      if (!horizontalContainer) return;
+      if (!horizontalContainer) {
+        pendingHorizontalAutoScrollRef.current = false;
+        return;
+      }
 
       // Find the earliest startMinute across all rows
       const earliestMinute = rows.reduce<number>((min, row) => {
@@ -229,7 +289,10 @@ export const FlightGanttTimeline = ({
         return start !== null && start < min ? start : min;
       }, Infinity);
 
-      if (!isFinite(earliestMinute)) return;
+      if (!isFinite(earliestMinute)) {
+        pendingHorizontalAutoScrollRef.current = false;
+        return;
+      }
 
       // Convert to pixel position and subtract a comfortable left padding (60px)
       const totalWidth = Math.max(
@@ -241,12 +304,13 @@ export const FlightGanttTimeline = ({
       const targetScroll = Math.max(0, pixelPosition - 60);
 
       horizontalContainer.scrollTo({ left: targetScroll, behavior: 'smooth' });
+      pendingHorizontalAutoScrollRef.current = false;
     };
 
     const frameId = requestAnimationFrame(scrollToInitialPosition);
     return () => cancelAnimationFrame(frameId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows]);
+  }, [rows, zoomLevelIndex, timelineViewportWidth]);
 
   useEffect(() => {
     const timelineViewport = timelineViewportRef.current;
@@ -335,30 +399,39 @@ export const FlightGanttTimeline = ({
     syncVerticalScrollMetrics();
   };
 
-  // Resolve STD as absolute minutes from 00:00 for marker positioning
-  const stdAbsoluteMinute = useMemo(() => {
-    if (!stdTime) return 0;
-    const parts = stdTime.split(':');
-    const h = Number(parts[0] ?? 0);
-    const m = Number(parts[1] ?? 0);
-    return h * 60 + m;
-  }, [stdTime]);
+  const markerReferenceDate = stdDate ?? etdDate;
+  const markerReferenceTime = stdTime ?? etdTime;
+  const markerReferenceLabel = stdDate && stdTime ? 'STD' : 'ETD';
 
   const currentRelativeMinute = useMemo(
-    () => getCurrentRelativeMinute(stdDate, stdTime, nowTimestamp),
-    [stdDate, stdTime, nowTimestamp],
+    () =>
+      getCurrentRelativeMinute(
+        markerReferenceDate,
+        markerReferenceTime,
+        nowTimestamp,
+      ),
+    [markerReferenceDate, markerReferenceTime, nowTimestamp],
   );
   const currentMarkerLabel = useMemo(
     () => formatCurrentClockTime(nowTimestamp),
     [nowTimestamp],
   );
   const markers = useMemo(
-    () => buildTimelineMarkers(tatVueloMinutos, currentRelativeMinute, currentMarkerLabel, stdAbsoluteMinute),
-    [tatVueloMinutos, currentRelativeMinute, currentMarkerLabel, stdAbsoluteMinute],
-  );
-  const domain = useMemo(
-    () => buildTimelineDomain(staTime, stdTime, etdTime, pushOutTime),
-    [staTime, stdTime, etdTime, pushOutTime],
+    () =>
+      buildTimelineMarkers(
+        tatVueloMinutos,
+        currentRelativeMinute,
+        currentMarkerLabel,
+        domain.stdMinute,
+        markerReferenceLabel,
+      ),
+    [
+      tatVueloMinutos,
+      currentRelativeMinute,
+      currentMarkerLabel,
+      domain.stdMinute,
+      markerReferenceLabel,
+    ],
   );
   const ticks = useMemo(
     () => buildTimelineTicks(domain, zoomLevel.tickStepMinutes),
@@ -376,8 +449,29 @@ export const FlightGanttTimeline = ({
     [domain.minMinute, domain.maxMinute, timelineWidth],
   );
   const rowNodes = useMemo(
-    () => buildTimelineRowsView(rows, markers, ticks, timelineOffset, availableTimelineWidth, timelineWidth, xScale, stableOnRowClick),
-    [rows, markers, ticks, timelineOffset, availableTimelineWidth, timelineWidth, xScale, stableOnRowClick],
+    () =>
+      buildTimelineRowsView(
+        rows,
+        markers,
+        ticks,
+        domain.stdMinute,
+        timelineOffset,
+        availableTimelineWidth,
+        timelineWidth,
+        xScale,
+        stableOnRowClick,
+      ),
+    [
+      rows,
+      markers,
+      ticks,
+      domain.stdMinute,
+      timelineOffset,
+      availableTimelineWidth,
+      timelineWidth,
+      xScale,
+      stableOnRowClick,
+    ],
   );
   const verticalScrollableDistance = Math.max(
     0,
@@ -594,6 +688,7 @@ export const FlightGanttTimeline = ({
               <FlightGanttTimelineAxis
                 markers={markers}
                 ticks={ticks}
+                timelineStartDateMs={domain.timelineStartDateMs}
                 timelineWidth={timelineWidth}
                 xScale={xScale}
               />

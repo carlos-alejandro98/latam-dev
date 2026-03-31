@@ -1,14 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
 
-import { Spinner } from '@/presentation/components/design-system';
 import {
   EditSquareOutlined,
   FlightDeparture,
   FlightLanding,
-} from '@/presentation/components/flight-list/icons';
+} from '@/presentation/components/common/icons';
+import { Spinner } from '@/presentation/components/design-system';
 import { MobileText as Text } from '@/presentation/components/mobile/mobile-text';
 import { TaskEditModal } from '@/presentation/components/task-edit-modal/task-edit-modal';
+import type { FlightTaskActionTarget } from '@/presentation/controllers/use-flight-task-actions';
 import type { MobileTaskEditModalController } from '@/presentation/controllers/use-mobile-flight-detail-controller';
 import type {
   MobileFlightDetailViewModel,
@@ -17,6 +18,11 @@ import type {
 
 import { styles } from './mobile-flight-detail.styles';
 
+const nowHHmm = (): string => {
+  const currentDate = new Date();
+  return `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
+};
+
 interface MobileFlightDetailProps {
   viewModel: MobileFlightDetailViewModel | null;
   taskEditModal: MobileTaskEditModalController;
@@ -24,6 +30,20 @@ interface MobileFlightDetailProps {
   error?: string;
   refreshing?: boolean;
   onRefresh?: () => void;
+  onStartTask?: (
+    task: MobileFlightProcessViewModel & FlightTaskActionTarget,
+    time: string,
+  ) => Promise<unknown>;
+  onFinishTask?: (
+    task: MobileFlightProcessViewModel & FlightTaskActionTarget,
+    time: string,
+  ) => Promise<unknown>;
+  /** Marcar Marco: inicio+fin (o solo fin) con refresco de Gantt; preferido frente a start/finish sueltos */
+  onCompleteHito?: (
+    task: MobileFlightProcessViewModel & FlightTaskActionTarget,
+    time: string,
+    onlyFinish: boolean,
+  ) => Promise<unknown>;
 }
 
 const renderContentState = (message: string) => {
@@ -161,12 +181,59 @@ export const MobileFlightDetail: React.FC<MobileFlightDetailProps> = ({
   error,
   refreshing = false,
   onRefresh,
+  onStartTask,
+  onFinishTask,
+  onCompleteHito,
 }) => {
   const [activeLeg, setActiveLeg] = useState<'arrival' | 'departure'>(
     'departure',
   );
   const scrollViewRef = useRef<ScrollView>(null);
   const [boardingSectionOffset, setBoardingSectionOffset] = useState(0);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  const handleCompleteHito = useCallback(
+    async (task: MobileFlightProcessViewModel) => {
+      if (taskEditModal.isReadOnly || actionLoading) {
+        return;
+      }
+
+      const time = nowHHmm();
+
+      if (onCompleteHito) {
+        setActionLoading(task.instanceId);
+        try {
+          await onCompleteHito(task, time, task.isStarted);
+        } finally {
+          setActionLoading(null);
+        }
+        return;
+      }
+
+      if (!onStartTask || !onFinishTask) {
+        return;
+      }
+
+      setActionLoading(task.instanceId);
+      try {
+        if (task.isStarted) {
+          await onFinishTask(task, time);
+        } else {
+          await onStartTask(task, time);
+          await onFinishTask({ ...task, startTimeLabel: time }, time);
+        }
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [
+      actionLoading,
+      onCompleteHito,
+      onStartTask,
+      onFinishTask,
+      taskEditModal.isReadOnly,
+    ],
+  );
 
   useEffect(() => {
     setActiveLeg('departure');
@@ -544,7 +611,10 @@ export const MobileFlightDetail: React.FC<MobileFlightDetailProps> = ({
 
           {viewModel.processCards.length ? (
             <View style={styles.processCards}>
-              {viewModel.processCards.map((task) => (
+              {viewModel.processCards.map((task: MobileFlightProcessViewModel) => {
+                const isHito = String(task.tipoEvento ?? '').toUpperCase() === 'HITO';
+
+                return (
                 <View key={task.id} style={styles.processCardExpanded}>
                   <View style={styles.processExpandedHeader}>
                     <Text
@@ -567,104 +637,204 @@ export const MobileFlightDetail: React.FC<MobileFlightDetailProps> = ({
                     </Pressable>
                   </View>
 
-                  <View style={styles.processExpandedGrid}>
-                    <View
-                      style={[
-                        styles.processExpandedMetric,
-                        styles.processExpandedMetricScheduled,
-                      ]}
-                    >
-                      <Text
-                        variant="heading-md"
-                        style={styles.processExpandedMetricValue}
-                        numberOfLines={1}
-                      >
-                        {task.scheduledRangeLabel.replace(' - ', ' / ')}
-                      </Text>
-                      <Text
-                        variant="label-md"
-                        style={styles.processExpandedMetricLabel}
-                      >
-                        Programado
-                      </Text>
-                    </View>
-                    <View style={styles.processExpandedDivider} />
-                    <View
-                      style={[
-                        styles.processExpandedMetric,
-                        styles.processExpandedMetricCompact,
-                      ]}
-                    >
-                      <Text
-                        variant="heading-md"
-                        style={styles.processExpandedMetricValue}
-                      >
-                        {task.startTimeLabel}
-                      </Text>
-                      <Text
-                        variant="label-md"
-                        style={styles.processExpandedMetricLabel}
-                      >
-                        Inicio
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.processExpandedMetric,
-                        styles.processExpandedMetricCompact,
-                      ]}
-                    >
-                      <Text
-                        variant="label-md"
-                        style={styles.processExpandedMetricValue}
-                      >
-                        {task.endTimeLabel}
-                      </Text>
-                      <Text
-                        variant="label-md"
-                        style={styles.processExpandedMetricLabel}
-                      >
-                        Termino
-                      </Text>
-                    </View>
+                  <View style={[
+                    styles.processExpandedGrid,
+                    isHito ? { justifyContent: 'center' } : undefined,
+                  ]}>
+                    {isHito ? (
+                      <>
+                        <View
+                          style={[
+                            styles.processExpandedMetric,
+                            { flex: undefined, minWidth: 100 },
+                          ]}
+                        >
+                          <Text
+                            variant="heading-md"
+                            style={styles.processExpandedMetricValue}
+                            numberOfLines={1}
+                          >
+                            {task.scheduledRangeLabel.split(' - ')[0] ?? '--'}
+                          </Text>
+                          <Text
+                            variant="label-md"
+                            style={styles.processExpandedMetricLabel}
+                          >
+                            Programado
+                          </Text>
+                        </View>
+                        <View style={styles.processExpandedDivider} />
+                        <View
+                          style={[
+                            styles.processExpandedMetric,
+                            { flex: undefined, minWidth: 100 },
+                          ]}
+                        >
+                          <Text
+                            variant="heading-md"
+                            style={styles.processExpandedMetricValue}
+                          >
+                            {task.startTimeLabel}
+                          </Text>
+                          <Text
+                            variant="label-md"
+                            style={styles.processExpandedMetricLabel}
+                          >
+                            Hora de Marco
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View
+                          style={[
+                            styles.processExpandedMetric,
+                            styles.processExpandedMetricScheduled,
+                          ]}
+                        >
+                          <Text
+                            variant="heading-md"
+                            style={styles.processExpandedMetricValue}
+                            numberOfLines={1}
+                          >
+                            {task.scheduledRangeLabel.replace(' - ', ' / ')}
+                          </Text>
+                          <Text
+                            variant="label-md"
+                            style={styles.processExpandedMetricLabel}
+                          >
+                            Programado
+                          </Text>
+                        </View>
+                        <View style={styles.processExpandedDivider} />
+                        <View
+                          style={[
+                            styles.processExpandedMetric,
+                            styles.processExpandedMetricCompact,
+                          ]}
+                        >
+                          <Text
+                            variant="heading-md"
+                            style={styles.processExpandedMetricValue}
+                          >
+                            {task.startTimeLabel}
+                          </Text>
+                          <Text
+                            variant="label-md"
+                            style={styles.processExpandedMetricLabel}
+                          >
+                            Inicio
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.processExpandedMetric,
+                            styles.processExpandedMetricCompact,
+                          ]}
+                        >
+                          <Text
+                            variant="label-md"
+                            style={styles.processExpandedMetricValue}
+                          >
+                            {task.endTimeLabel}
+                          </Text>
+                          <Text
+                            variant="label-md"
+                            style={styles.processExpandedMetricLabel}
+                          >
+                            Termino
+                          </Text>
+                        </View>
+                      </>
+                    )}
                   </View>
 
-                  <View style={styles.processExpandedFooter}>
-                    <View style={styles.processExpandedDuration}>
-                      <Text
-                        variant="label-lg"
-                        style={styles.processExpandedMetricValue}
+                  <View style={[
+                    styles.processExpandedFooter,
+                    isHito ? { justifyContent: 'center' } : undefined,
+                  ]}>
+                    {!isHito ? (
+                      <View style={styles.processExpandedDuration}>
+                        <Text
+                          variant="label-lg"
+                          style={styles.processExpandedMetricValue}
+                        >
+                          {task.durationLabel}
+                        </Text>
+                        <Text
+                          variant="label-md"
+                          style={styles.processExpandedMetricLabel}
+                        >
+                          {getExpandedProcessDurationLabel(task)}
+                        </Text>
+                      </View>
+                    ) : null}
+
+                    {isHito ? (
+                      task.statusTone === 'completed' ? (
+                        <View
+                          style={[
+                            styles.processExpandedAction,
+                            styles.processExpandedActionCompleted,
+                          ]}
+                        >
+                          <Text
+                            variant="heading-sm"
+                            style={{ color: '#0a0e80' }}
+                          >
+                            Marco finalizado
+                          </Text>
+                        </View>
+                      ) : (
+                        <Pressable
+                          style={[
+                            styles.processExpandedAction,
+                            { backgroundColor: '#6B0FC7' },
+                            (taskEditModal.isReadOnly || actionLoading === task.instanceId)
+                              ? { opacity: 0.45 }
+                              : null,
+                          ]}
+                          onPress={() => {
+                            void handleCompleteHito(task);
+                          }}
+                          disabled={taskEditModal.isReadOnly || actionLoading === task.instanceId}
+                        >
+                          {actionLoading === task.instanceId ? (
+                            <ActivityIndicator size="small" color="#ffffff" />
+                          ) : (
+                            <Text
+                              variant="heading-sm"
+                              style={{ color: '#ffffff' }}
+                            >
+                              Marcar Marco
+                            </Text>
+                          )}
+                        </Pressable>
+                      )
+                    ) : (
+                      <Pressable
+                        style={[
+                          styles.processExpandedAction,
+                          getExpandedProcessActionStyle(task),
+                          taskEditModal.isReadOnly ? { opacity: 0.45 } : null,
+                        ]}
+                        onPress={() => taskEditModal.open(task)}
+                        disabled={taskEditModal.isReadOnly}
                       >
-                        {task.durationLabel}
-                      </Text>
-                      <Text
-                        variant="label-md"
-                        style={styles.processExpandedMetricLabel}
-                      >
-                        {getExpandedProcessDurationLabel(task)}
-                      </Text>
-                    </View>
-                    <Pressable
-                      style={[
-                        styles.processExpandedAction,
-                        getExpandedProcessActionStyle(task),
-                        taskEditModal.isReadOnly ? { opacity: 0.45 } : null,
-                      ]}
-                      onPress={() => taskEditModal.open(task)}
-                      disabled={taskEditModal.isReadOnly}
-                    >
-                      <Text
-                        variant="heading-sm"
-                        style={{
-                          color: getExpandedProcessActionTextColor(task),
-                        }}
-                      >
-                        {getExpandedProcessActionLabel(task)}
-                      </Text>
-                    </Pressable>
+                        <Text
+                          variant="heading-sm"
+                          style={{
+                            color: getExpandedProcessActionTextColor(task),
+                          }}
+                        >
+                          {getExpandedProcessActionLabel(task)}
+                        </Text>
+                      </Pressable>
+                    )}
                   </View>
                 </View>
-              ))}
+                );
+              })}
             </View>
           ) : (
             <View style={styles.processEmptyCard}>

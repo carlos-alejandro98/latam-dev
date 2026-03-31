@@ -103,6 +103,7 @@ export const TabletHomeScreen = () => {
           taskEditModal={tabletFlightDetail.taskEditModal}
           onStartTask={tabletFlightDetail.taskActions.startTask}
           onFinishTask={tabletFlightDetail.taskActions.finishTask}
+          onCompleteHito={tabletFlightDetail.taskActions.completeHitoTask}
         />
       </View>
 

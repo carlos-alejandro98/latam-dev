@@ -118,8 +118,13 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   menuButton: {
+    position: 'relative' as const,
     width: 40,
     height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuButtonIconLayer: {
     alignItems: 'center',
     justifyContent: 'center',
   },

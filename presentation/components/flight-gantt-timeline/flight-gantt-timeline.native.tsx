@@ -8,9 +8,13 @@ import { styles } from "./flight-gantt-timeline.styles";
 import type { ReactElement } from "react";
 
 export type FlightGanttTimelineProps = {
+  staDate?: string | null;
   staTime?: string | null;
+  etaDate?: string | null;
+  etaTime?: string | null;
   stdDate?: string | null;
   stdTime?: string | null;
+  etdDate?: string | null;
   etdTime?: string | null;
   pushOutTime?: string | null;
   tatVueloMinutos?: number | null;

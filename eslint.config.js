@@ -355,6 +355,5 @@ export default [
         },
       ],
     },
-    'scripts/design-system/eslint-rules/no-logic-in-design-system.ts': 'error',
   },
 ];

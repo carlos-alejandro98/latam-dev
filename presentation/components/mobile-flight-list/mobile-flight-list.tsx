@@ -11,7 +11,7 @@ import {
   DoubleCaretLeftOutlined,
   SearchOutlined,
   SyncOutlined,
-} from '@/presentation/components/flight-list/icons';
+} from '@/presentation/components/common/icons';
 import { getPanelColors } from '@/presentation/components/flight-list/flight-list-theme';
 import type { OrderKey } from '@/presentation/components/flight-list/flight-list.types';
 import { MobileText as Text } from '@/presentation/components/mobile/mobile-text';
