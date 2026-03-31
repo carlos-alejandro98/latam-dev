@@ -10,15 +10,12 @@ import {
   updateGanttData,
 } from '@/store/slices/flight-gantt-slice';
 
-const log = (...args: unknown[]) => {
-  if (ENV.enableLogs) console.log(...args);
-};
-const warn = (...args: unknown[]) => {
-  if (ENV.enableLogs) console.warn(...args);
-};
-const logError = (...args: unknown[]) => {
-  if (ENV.enableLogs) console.error(...args);
-};
+// Los logs del stream se emiten siempre, independiente de ENV.enableLogs,
+// para que el equipo pueda diagnosticar problemas de conectividad en cualquier entorno.
+const PREFIX = '[GanttStream]';
+const log = (...args: unknown[]) => console.log(PREFIX, ...args);
+const warn = (...args: unknown[]) => console.warn(PREFIX, ...args);
+const logError = (...args: unknown[]) => console.error(PREFIX, ...args);
 
 const SSE_PATH = '/api/v1/tracking/active-flights/stream';
 const INTERVAL_SECONDS = 5;
@@ -49,11 +46,11 @@ export function useGanttStream(
 
   useEffect(() => {
     if (!activeFlightId) {
-      log('[GanttStream] No hay vuelo activo seleccionado, no se abre el stream.');
+      log('No hay vuelo activo seleccionado, no se abre el stream.');
       return;
     }
 
-    log(`[GanttStream] Iniciando stream para el vuelo: ${activeFlightId}`);
+    log(`Iniciando stream para el vuelo: ${activeFlightId}`);
 
     let mounted = true;
     let es: EventSource | null = null;
@@ -79,14 +76,14 @@ export function useGanttStream(
 
     const closeEs = () => {
       if (es) {
-        log('[GanttStream] Cerrando conexión SSE existente.');
+        log('Cerrando conexión SSE existente.');
         es.close();
         es = null;
       }
     };
 
     const teardown = () => {
-      log(`[GanttStream] Destruyendo stream del vuelo: ${activeFlightId}`);
+      log(`Destruyendo stream del vuelo: ${activeFlightId}`);
       mounted = false;
       clearReconnectTimer();
       clearStaleTimer();
@@ -97,7 +94,7 @@ export function useGanttStream(
       clearStaleTimer();
       staleTimer = setTimeout(() => {
         if (!mounted) return;
-        warn('[GanttStream] La conexión lleva demasiado tiempo sin recibir eventos. Reconectando...');
+        warn('La conexión lleva demasiado tiempo sin recibir eventos. Reconectando...');
         scheduleReconnect();
       }, STALE_TIMEOUT_MS);
     };
@@ -105,19 +102,19 @@ export function useGanttStream(
     /** Actualiza el store con datos nuevos sin activar el estado de carga. */
     const applyGanttUpdate = (data: FlightGantt) => {
       if (mounted) {
-        log(`[GanttStream] Aplicando actualización silenciosa del gantt para el vuelo: ${data.flight?.flightId ?? 'desconocido'}`);
+        log(`Aplicando actualización silenciosa del gantt para el vuelo: ${data.flight?.flightId ?? 'desconocido'}`);
         dispatch(updateGanttData(data));
       }
     };
 
     /** Re-fetchea el gantt del vuelo activo y lo empuja al store silenciosamente. */
     const reloadGantt = (flightId: string) => {
-      log(`[GanttStream] Recargando datos del gantt para el vuelo: ${flightId}`);
+      log(`Recargando datos del gantt para el vuelo: ${flightId}`);
       dispatch(fetchFlightGantt(flightId))
         .unwrap()
         .then(applyGanttUpdate)
         .catch((err: unknown) => {
-          logError(`[GanttStream] Error al recargar el gantt del vuelo ${flightId}:`, err);
+          logError(`Error al recargar el gantt del vuelo ${flightId}:`, err);
           // Se mantienen los datos existentes en caso de error
         });
     };
@@ -134,7 +131,7 @@ export function useGanttStream(
       );
       const delay = backoff + Math.random() * 1000;
       retryCount += 1;
-      log(`[GanttStream] Reconectando en ${Math.round(delay)}ms (intento #${retryCount})`);
+      log(`Reconectando en ${Math.round(delay)}ms (intento #${retryCount})`);
       reconnectTimer = setTimeout(() => {
         if (mounted) connect(); // eslint-disable-line @typescript-eslint/no-use-before-define
       }, delay);
@@ -160,14 +157,14 @@ export function useGanttStream(
         : undefined;
 
       if (!token) {
-        warn('[GanttStream] No se encontró token de autenticación. El stream puede ser rechazado por el servidor.');
+        warn('No se encontró token de autenticación. El stream puede ser rechazado por el servidor.');
       }
 
       const finalUrl = token
         ? `${url}&token=${encodeURIComponent(token)}`
         : url;
 
-      log(`[GanttStream] Abriendo conexión SSE → ${baseUrl}${SSE_PATH} | token presente: ${!!token}`);
+      log(`Abriendo conexión SSE → ${baseUrl}${SSE_PATH} | token presente: ${!!token}`);
 
       es = new EventSource(finalUrl);
       resetStaleTimer();
@@ -177,7 +174,7 @@ export function useGanttStream(
         retryCount = 0;
         resetStaleTimer();
         const fid = activeFlightIdRef.current;
-        log(`[GanttStream] Conexión establecida con el servidor. Cargando gantt del vuelo: ${fid ?? 'ninguno'}`);
+        log(`Conexión establecida con el servidor. Cargando gantt del vuelo: ${fid ?? 'ninguno'}`);
         if (fid) void dispatch(fetchFlightGantt(fid));
       });
 
@@ -187,8 +184,8 @@ export function useGanttStream(
         const fid = activeFlightIdRef.current;
         if (!fid) return;
 
-        // Se logguea el dato crudo para facilitar el diagnóstico en consola
-        log(`[GanttStream] Evento 'flight_updated' recibido. Datos crudos: ${event.data}`);
+        // Se loguea el dato crudo para facilitar el diagnóstico en consola
+        log(`Evento 'flight_updated' recibido. Datos crudos: ${event.data}`);
 
         try {
           const payload = JSON.parse(event.data as string) as Record<string, unknown>;
@@ -200,44 +197,44 @@ export function useGanttStream(
             (payload.flight_id as string | undefined) ??
             (payload.id as string | undefined);
 
-          log(`[GanttStream] flightId extraído del evento: ${eventFlightId ?? 'no especificado'} | vuelo activo en pantalla: ${fid}`);
+          log(`flightId extraído del evento: ${eventFlightId ?? 'no especificado'} | vuelo activo en pantalla: ${fid}`);
 
           const isSameFlight = eventFlightId === undefined || eventFlightId === fid;
 
           if (isSameFlight) {
-            log(`[GanttStream] Actualizando gantt del vuelo activo (${fid})...`);
+            log(`Actualizando gantt del vuelo activo (${fid})...`);
             reloadGantt(fid);
           } else {
-            log(`[GanttStream] El evento es para el vuelo ${eventFlightId}, no para el activo (${fid}). Se ignora.`);
+            log(`El evento es para el vuelo ${eventFlightId}, no para el activo (${fid}). Se ignora.`);
           }
         } catch {
           // Si el payload no es JSON válido, igual se recarga para no perder la actualización
-          warn(`[GanttStream] Payload no es JSON válido. Se recarga el gantt de todas formas para el vuelo: ${fid}`);
+          warn(`Payload no es JSON válido. Se recarga el gantt de todas formas para el vuelo: ${fid}`);
           reloadGantt(fid);
         }
       });
 
       es.addEventListener('flight_added', () => {
         if (!mounted) return;
-        log('[GanttStream] Evento flight_added recibido. Manteniendo timer de actividad.');
+        log('Evento flight_added recibido. Manteniendo timer de actividad.');
         resetStaleTimer();
       });
 
       es.addEventListener('flight_removed', () => {
         if (!mounted) return;
-        log('[GanttStream] Evento flight_removed recibido. Manteniendo timer de actividad.');
+        log('Evento flight_removed recibido. Manteniendo timer de actividad.');
         resetStaleTimer();
       });
 
       es.addEventListener('heartbeat', () => {
         if (!mounted) return;
-        log('[GanttStream] Heartbeat recibido. Conexión activa.');
+        log('Heartbeat recibido. Conexión activa.');
         resetStaleTimer();
       });
 
       es.addEventListener('error', (event) => {
         if (!mounted) return;
-        logError('[GanttStream] Error en la conexión SSE. Se intentará reconectar.', event);
+        logError('Error en la conexión SSE. Se intentará reconectar.', event);
         clearStaleTimer();
         closeEs();
         scheduleReconnect();
@@ -247,7 +244,7 @@ export function useGanttStream(
     // ── Inicio ────────────────────────────────────────────────────────────
 
     // Carga el gantt inmediatamente para el vuelo seleccionado, luego abre el stream
-    log(`[GanttStream] Cargando gantt inicial del vuelo: ${activeFlightId}`);
+    log(`Cargando gantt inicial del vuelo: ${activeFlightId}`);
     void dispatch(fetchFlightGantt(activeFlightId));
     connect();
 
