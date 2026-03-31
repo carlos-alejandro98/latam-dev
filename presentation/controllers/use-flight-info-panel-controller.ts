@@ -24,18 +24,11 @@ export const useFlightInfoPanelController = (
     flightId: requestedFlightId,
   } = useFlightGanttController(flight?.flightId);
 
-  // Se acepta el gantt si el flightId coincide exactamente, o si el flightId
-  // del gantt está contenido en el flightId del vuelo (para cubrir formatos compuestos
-  // como "LA3228-BEL-2026-03-31" vs "LA3228-BEL").
-  const ganttFlightId = gantt?.flight?.flightId;
-  const flightIdMatch =
-    ganttFlightId === flight?.flightId ||
-    (ganttFlightId != null &&
-      flight?.flightId != null &&
-      (flight.flightId.startsWith(ganttFlightId) ||
-        ganttFlightId.startsWith(flight.flightId)));
-
-  const resolvedGantt = flight && ganttFlightId && flightIdMatch ? gantt : null;
+  // Se usa el gantt del store siempre que haya un vuelo activo seleccionado.
+  // La responsabilidad de garantizar que el gantt corresponde al vuelo correcto
+  // recae en loadFlightGantt (carga inicial) y en el stream SSE (actualizaciones
+  // en tiempo real), ambos controlados con el mismo flightId del vuelo activo.
+  const resolvedGantt = flight ? gantt : null;
 
   const shouldUseRequestState =
     Boolean(flight) && requestedFlightId === flight?.flightId;
