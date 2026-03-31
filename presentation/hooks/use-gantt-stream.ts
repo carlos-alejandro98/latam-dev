@@ -186,19 +186,34 @@ export function useGanttStream(
         resetStaleTimer();
         const fid = activeFlightIdRef.current;
         if (!fid) return;
+
+        // Se logguea el dato crudo para facilitar el diagnóstico en consola
+        log(`[GanttStream] Evento 'flight_updated' recibido. Datos crudos: ${event.data}`);
+
         try {
-          const payload = JSON.parse(event.data as string) as {
-            flightId?: string;
-          };
-          log(`[GanttStream] Evento 'flight_updated' recibido. flightId del evento: ${payload.flightId ?? 'no especificado'}, vuelo activo: ${fid}`);
-          if (payload.flightId === fid) {
-            log(`[GanttStream] El vuelo actualizado coincide con el activo. Recargando gantt...`);
+          const payload = JSON.parse(event.data as string) as Record<string, unknown>;
+
+          // El servidor puede mandar el ID del vuelo en distintos campos según la versión del backend.
+          // Se normalizan todas las variantes conocidas para no perder actualizaciones.
+          const eventFlightId =
+            (payload.flightId as string | undefined) ??
+            (payload.flight_id as string | undefined) ??
+            (payload.id as string | undefined);
+
+          log(`[GanttStream] flightId extraído del evento: ${eventFlightId ?? 'no especificado'} | vuelo activo en pantalla: ${fid}`);
+
+          const isSameFlight = eventFlightId === undefined || eventFlightId === fid;
+
+          if (isSameFlight) {
+            log(`[GanttStream] Actualizando gantt del vuelo activo (${fid})...`);
             reloadGantt(fid);
           } else {
-            log(`[GanttStream] El vuelo actualizado (${payload.flightId}) no es el activo (${fid}). Se ignora.`);
+            log(`[GanttStream] El evento es para el vuelo ${eventFlightId}, no para el activo (${fid}). Se ignora.`);
           }
         } catch {
-          warn('[GanttStream] Se recibió un evento flight_updated con payload malformado. Se ignora.');
+          // Si el payload no es JSON válido, igual se recarga para no perder la actualización
+          warn(`[GanttStream] Payload no es JSON válido. Se recarga el gantt de todas formas para el vuelo: ${fid}`);
+          reloadGantt(fid);
         }
       });
 
