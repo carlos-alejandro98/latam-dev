@@ -262,8 +262,10 @@ export function useGanttStream(
 
       es.addEventListener('heartbeat', (event: MessageEvent) => {
         if (!mounted) return;
-        log(`♡ Heartbeat recibido — data: ${String(event.data).slice(0, 80)}`);
         resetStaleTimer();
+        const fid = activeFlightIdRef.current;
+        log(`♡ Heartbeat recibido — data: ${String(event.data).slice(0, 80)}`);
+        if (fid) scheduleReload(fid, 'heartbeat');
       });
 
       es.addEventListener('error', (event) => {
