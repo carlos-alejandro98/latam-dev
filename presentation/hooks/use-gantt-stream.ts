@@ -7,10 +7,8 @@ import { FlightsHttpClient } from '@/infrastructure/http/flights-http-client';
 import type { AppDispatch } from '@/store';
 import { updateGanttData } from '@/store/slices/flight-gantt-slice';
 
-// Los logs del stream se emiten siempre, independiente de ENV.enableLogs,
-// para que el equipo pueda diagnosticar problemas de conectividad en cualquier entorno.
 const PREFIX = '[GanttStream]';
-const log = (...args: unknown[]) => console.log(PREFIX, ...args);
+const log = (...args: unknown[]) => { if (process.env.NODE_ENV === 'development') console.log(PREFIX, ...args); };
 const warn = (...args: unknown[]) => console.warn(PREFIX, ...args);
 const logError = (...args: unknown[]) => console.error(PREFIX, ...args);
 
