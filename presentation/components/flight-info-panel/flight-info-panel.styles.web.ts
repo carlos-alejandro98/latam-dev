@@ -297,8 +297,8 @@ export const styles: Record<string, CSSProperties> = {
     boxSizing: 'border-box',
   },
   eventsPanelToggle: {
-    width: 24,
-    height: 24,
+    width: 32,
+    height: 32,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -310,32 +310,89 @@ export const styles: Record<string, CSSProperties> = {
     minHeight: 0,
     boxSizing: 'border-box',
   },
-  eventsList: {
+  timelineList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    gap: 18,
     paddingTop: 20,
     paddingBottom: 20,
     paddingLeft: 16,
     paddingRight: 16,
+    boxSizing: 'border-box',
   },
-  eventItem: {
+  timelineRow: {
     display: 'flex',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    alignItems: 'flex-start',
+    columnGap: 8,
   },
-  eventMeta: {
+  timelineTime: {
+    width: 46,
+    minWidth: 46,
+    flexShrink: 0,
+    lineHeight: 1.2,
+  },
+  timelineMarkerColumn: {
     display: 'flex',
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'center',
+    width: 12,
+    minWidth: 12,
+    flexShrink: 0,
+    paddingTop: 4,
   },
-  eventTime: {
-    minWidth: 40,
+  timelineDot: {
+    width: 7,
+    height: 7,
+    minWidth: 7,
+    minHeight: 7,
+    borderRadius: '999px',
   },
-  eventDescription: {
-    lineHeight: 1.5,
+  timelineContent: {
+    display: 'flex',
+    flexDirection: 'column',
+    flex: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    rowGap: 4,
+  },
+  timelineResolvedTime: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+    width: 72,
+    minWidth: 72,
+    flexShrink: 0,
+    paddingTop: 1,
+  },
+  timelineResolvedArrow: {
+    fontSize: 20,
+    fontWeight: 400,
+    lineHeight: 1,
+  },
+  timelineResolvedValue: {
+    lineHeight: 1.2,
+  },
+  timelineDescription: {
+    lineHeight: 1.2,
+  },
+  timelineChangeRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    paddingLeft: 14,
+  },
+  timelineChangeTime: {
+    lineHeight: 1.2,
+  },
+  timelineChangeArrow: {
+    fontSize: 18,
+    fontWeight: 400,
+    lineHeight: 1,
   },
   eventsEmptyState: {
     display: 'flex',
@@ -372,16 +429,6 @@ export const styles: Record<string, CSSProperties> = {
     right: 0,
     height: 3,
     borderRadius: 2,
-  },
-  eventBadge: {
-    borderRadius: 6,
-    paddingTop: 2,
-    paddingBottom: 2,
-    paddingLeft: 7,
-    paddingRight: 7,
-    minWidth: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   // Applied to newly added activity rows via CSS animation
   eventItemNew: {

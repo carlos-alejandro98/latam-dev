@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { FlightComment } from '@/domain/entities/flight-comment';
 import {
   canCreateFlightTaskComments,
   canManageFlightTaskActions,
 } from '@/domain/services/flight-task-permissions';
-import type { FlightComment } from '@/domain/entities/flight-comment';
 import { useFlightCommentsStoreAdapter } from '@/presentation/adapters/redux/flight-comments-store-adapter';
 import { useAuthSelector } from '@/presentation/adapters/redux/use-auth-selector';
 
@@ -19,6 +19,8 @@ export type TaskEditTarget = {
   statusLabel: string;
   startTimeLabel?: string | null;
   endTimeLabel?: string | null;
+  plannedStartTime?: string | null;
+  plannedEndTime?: string | null;
   tipoEvento?: string;
 };
 
@@ -32,6 +34,7 @@ export type TaskEditModalController<TTask extends TaskEditTarget> = {
   commentsLoading: boolean;
   commentsSubmitting: boolean;
   commentsError?: string;
+  activeAction: 'primary' | 'reset' | null;
   actionLoading: boolean;
   actionError?: string;
   isReadOnly: boolean;
@@ -71,6 +74,34 @@ const getEditableTimeValue = (value?: string | null): string => {
   }
 
   return value;
+};
+
+const getPresetTimeValue = (
+  primaryValue?: string | null,
+  fallbackValue?: string | null,
+): string => {
+  return (
+    getEditableTimeValue(primaryValue) || getEditableTimeValue(fallbackValue)
+  );
+};
+
+const getInitialStartInputValue = <TTask extends TaskEditTarget>(
+  task: TTask,
+): string => {
+  return getPresetTimeValue(task.startTimeLabel, task.plannedStartTime);
+};
+
+const getInitialEndInputValue = <TTask extends TaskEditTarget>(
+  task: TTask,
+): string => {
+  if (task.tipoEvento?.toUpperCase() === 'HITO') {
+    return (
+      getPresetTimeValue(task.startTimeLabel, task.plannedStartTime) ||
+      getEditableTimeValue(task.plannedEndTime)
+    );
+  }
+
+  return getPresetTimeValue(task.endTimeLabel, task.plannedEndTime);
 };
 
 /**
@@ -125,6 +156,9 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
   const [editStartTime, setEditStartTime] = useState('');
   const [editEndTime, setEditEndTime] = useState('');
   const [editComment, setEditComment] = useState('');
+  const [activeAction, setActiveAction] = useState<'primary' | 'reset' | null>(
+    null,
+  );
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>(undefined);
   const canManageTaskActions = canManageFlightTaskActions(role);
@@ -136,6 +170,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
     setEditStartTime('');
     setEditEndTime('');
     setEditComment('');
+    setActiveAction(null);
     setActionLoading(false);
     setActionError(undefined);
     clearComments();
@@ -149,9 +184,10 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
     (task: TTask) => {
       clearComments();
       setEditingTask(task);
-      setEditStartTime(getEditableTimeValue(task.startTimeLabel));
-      setEditEndTime(getEditableTimeValue(task.endTimeLabel));
+      setEditStartTime(getInitialStartInputValue(task));
+      setEditEndTime(getInitialEndInputValue(task));
       setEditComment('');
+      setActiveAction(null);
       setActionLoading(false);
       setActionError(undefined);
     },
@@ -260,6 +296,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
       return;
     }
 
+    setActiveAction('primary');
     setActionLoading(true);
     setActionError(undefined);
 
@@ -303,6 +340,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
         setActionError(message);
       })
       .finally(() => {
+        setActiveAction(null);
         setActionLoading(false);
       });
   }, [
@@ -317,6 +355,8 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
     editingTask,
     hasDraftComment,
     hasTaskAction,
+    isCompleted,
+    isHito,
     onFinishTask,
     onStartTask,
     onUpdateTask,
@@ -333,6 +373,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
       return;
     }
 
+    setActiveAction('reset');
     setActionLoading(true);
     setActionError(undefined);
 
@@ -354,6 +395,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
         setActionError(message);
       })
       .finally(() => {
+        setActiveAction(null);
         setActionLoading(false);
       });
   }, [
@@ -379,6 +421,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
       commentsLoading: loading,
       commentsSubmitting: submitting,
       commentsError: error,
+      activeAction,
       actionLoading,
       actionError,
       isReadOnly,
@@ -405,9 +448,8 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
     }),
     [
       actionError,
+      activeAction,
       actionLoading,
-      canComment,
-      canManageTaskActions,
       canPerformPrimaryAction,
       canResetTask,
       canSendComment,
@@ -422,6 +464,7 @@ export const useTaskEditModalController = <TTask extends TaskEditTarget>({
       editStartTime,
       error,
       isEndEditable,
+      isHito,
       isReadOnly,
       isStartEditable,
       loading,

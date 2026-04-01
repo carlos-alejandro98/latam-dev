@@ -39,6 +39,28 @@ export type FlightTaskActionResult = {
   durationLabel?: string;
 };
 
+type UseFlightTaskActionsResult = {
+  startTask: (
+    task: FlightTaskActionTarget,
+    time: string,
+  ) => Promise<FlightTaskActionResult>;
+  finishTask: (
+    task: FlightTaskActionTarget,
+    time: string,
+  ) => Promise<FlightTaskActionResult>;
+  updateTask: (
+    task: FlightTaskActionTarget,
+    startTime: string,
+    endTime: string,
+  ) => Promise<FlightTaskActionResult>;
+  completeHitoTask: (
+    task: FlightTaskActionTarget,
+    time: string,
+    onlyFinish: boolean,
+  ) => Promise<FlightTaskActionResult>;
+  optimisticTasks: Record<string, FlightTaskActionResult>;
+};
+
 type UseFlightTaskActionsOptions = {
   flight: Flight | null;
   patchTask: (payload: {
@@ -47,6 +69,52 @@ type UseFlightTaskActionsOptions = {
     endTime?: string | null;
   }) => void;
   loadFlightGantt: (flightId: string) => unknown;
+};
+
+const normalizeSessionTimeValue = (value?: string | null): string | null => {
+  const trimmed = value?.trim();
+
+  if (!trimmed || trimmed === '--:--' || trimmed === '----') {
+    return null;
+  }
+
+  return trimmed;
+};
+
+const resolveUpdatedTimeChange = ({
+  previousStartTime,
+  previousEndTime,
+  plannedStartTime,
+  plannedEndTime,
+  nextStartTime,
+  nextEndTime,
+}: {
+  previousStartTime?: string | null;
+  previousEndTime?: string | null;
+  plannedStartTime?: string | null;
+  plannedEndTime?: string | null;
+  nextStartTime?: string | null;
+  nextEndTime?: string | null;
+}): { previousTime: string | null; nextTime: string | null } => {
+  const previousStart = normalizeSessionTimeValue(previousStartTime);
+  const previousEnd = normalizeSessionTimeValue(previousEndTime);
+  const plannedStart = normalizeSessionTimeValue(plannedStartTime);
+  const plannedEnd = normalizeSessionTimeValue(plannedEndTime);
+  const nextStart = normalizeSessionTimeValue(nextStartTime);
+  const nextEnd = normalizeSessionTimeValue(nextEndTime);
+
+  if (nextEnd && nextEnd !== previousEnd) {
+    return { previousTime: previousEnd ?? plannedEnd, nextTime: nextEnd };
+  }
+
+  if (nextStart && nextStart !== previousStart) {
+    return { previousTime: previousStart ?? plannedStart, nextTime: nextStart };
+  }
+
+  return {
+    previousTime: previousEnd ?? previousStart ?? plannedEnd ?? plannedStart,
+    nextTime: nextEnd ?? nextStart,
+  };
 };
 
 const getStatusPresentation = (
@@ -130,7 +198,7 @@ export const useFlightTaskActions = ({
   flight,
   patchTask,
   loadFlightGantt,
-}: UseFlightTaskActionsOptions) => {
+}: UseFlightTaskActionsOptions): UseFlightTaskActionsResult => {
   const dispatch = useDispatch<AppDispatch>();
   const { role } = useAuthSelector();
   const canManageTaskActions = canManageFlightTaskActions(role);
@@ -229,6 +297,10 @@ export const useFlightTaskActions = ({
       task: FlightTaskActionTarget,
       time: string,
       delayMinutes: number,
+      metadata?: {
+        previousTime?: string | null;
+        nextTime?: string | null;
+      },
     ) => {
       dispatch(
         addSessionEvent({
@@ -236,6 +308,8 @@ export const useFlightTaskActions = ({
           taskInstanceId: task.instanceId,
           taskName: task.title,
           time,
+          previousTime: metadata?.previousTime ?? null,
+          nextTime: metadata?.nextTime ?? null,
           timestamp: Date.now(),
           flightId: flight?.flightId ?? '',
           isDelayed: delayMinutes > 0,
@@ -243,7 +317,7 @@ export const useFlightTaskActions = ({
         }),
       );
     },
-    [dispatch, flight?.flightId],
+      [dispatch, flight?.flightId],
   );
 
   const startTask = useCallback(
@@ -409,11 +483,21 @@ export const useFlightTaskActions = ({
           ? calcDelayMinutes(endTime, task.plannedEndTime)
           : 0;
 
+        const updatedTimes = resolveUpdatedTimeChange({
+          previousStartTime: task.startTimeLabel,
+          previousEndTime: task.endTimeLabel,
+          plannedStartTime: task.plannedStartTime,
+          plannedEndTime: task.plannedEndTime,
+          nextStartTime: startTime,
+          nextEndTime: endTime,
+        });
+
         registerSessionEvent(
           'updated',
           task,
-          startTime || endTime,
+          updatedTimes.nextTime ?? startTime ?? endTime ?? '',
           Math.max(delayStart, delayEnd),
+          updatedTimes,
         );
         scheduleSync();
         setOptimisticTask(task.instanceId, optimisticResult);

@@ -5,6 +5,7 @@ import { useFlightCommentsStoreAdapter } from '@/presentation/adapters/redux/fli
 import { useAuthSelector } from '@/presentation/adapters/redux/use-auth-selector';
 
 import { useTaskEditModalController } from './use-task-edit-modal-controller';
+
 import type { FlightTaskActionResult } from './use-flight-task-actions';
 
 jest.mock(
@@ -80,6 +81,126 @@ describe('useTaskEditModalController', () => {
       userName: '',
       userPhotoUrl: '',
     });
+  });
+
+  it('prefills planned start and end times for tasks without real times', () => {
+    (useAuthSelector as jest.Mock).mockReturnValue({
+      session: null,
+      role: 'controller',
+      userName: '',
+      userPhotoUrl: '',
+    });
+
+    const { result } = renderHook(() =>
+      useTaskEditModalController({
+        flightId: 'flight-1',
+        onStartTask: startTaskHandler,
+        onFinishTask: finishTaskHandler,
+        onUpdateTask: updateTaskHandler,
+      }),
+    );
+
+    act(() => {
+      result.current.open({
+        instanceId: 'task-1',
+        title: 'Pushback',
+        statusTone: 'pending',
+        statusLabel: 'Pendiente',
+        startTimeLabel: '--:--',
+        endTimeLabel: '--:--',
+        plannedStartTime: '10:00',
+        plannedEndTime: '10:15',
+      });
+    });
+
+    expect(result.current.startTime).toBe('10:00');
+    expect(result.current.endTime).toBe('10:15');
+    expect(result.current.canPerformPrimaryAction).toBe(true);
+  });
+
+  it('prefills the hito time with the marked time or planned time when opening the modal', () => {
+    (useAuthSelector as jest.Mock).mockReturnValue({
+      session: null,
+      role: 'controller',
+      userName: '',
+      userPhotoUrl: '',
+    });
+
+    const { result } = renderHook(() =>
+      useTaskEditModalController({
+        flightId: 'flight-1',
+        onStartTask: startTaskHandler,
+        onFinishTask: finishTaskHandler,
+        onUpdateTask: updateTaskHandler,
+      }),
+    );
+
+    act(() => {
+      result.current.open({
+        instanceId: 'hito-1',
+        title: 'Push Back',
+        statusTone: 'completed',
+        statusLabel: 'Finalizado',
+        startTimeLabel: '11:05',
+        endTimeLabel: '--:--',
+        plannedStartTime: '11:00',
+        plannedEndTime: '11:00',
+        tipoEvento: 'HITO',
+      });
+    });
+
+    expect(result.current.isHito).toBe(true);
+    expect(result.current.endTime).toBe('11:05');
+  });
+
+  it('enables only the start field for pending tasks and only the end field for in-progress tasks', () => {
+    (useAuthSelector as jest.Mock).mockReturnValue({
+      session: null,
+      role: 'controller',
+      userName: '',
+      userPhotoUrl: '',
+    });
+
+    const { result } = renderHook(() =>
+      useTaskEditModalController({
+        flightId: 'flight-1',
+        onStartTask: startTaskHandler,
+        onFinishTask: finishTaskHandler,
+        onUpdateTask: updateTaskHandler,
+      }),
+    );
+
+    act(() => {
+      result.current.open({
+        instanceId: 'task-pending',
+        title: 'Inicio task',
+        statusTone: 'pending',
+        statusLabel: 'Pendiente',
+        startTimeLabel: '--:--',
+        endTimeLabel: '--:--',
+        plannedStartTime: '10:00',
+        plannedEndTime: '10:15',
+      });
+    });
+
+    expect(result.current.isStartEditable).toBe(true);
+    expect(result.current.isEndEditable).toBe(false);
+
+    act(() => {
+      result.current.open({
+        instanceId: 'task-progress',
+        title: 'Termino task',
+        statusTone: 'in_progress',
+        statusLabel: 'En progreso',
+        startTimeLabel: '10:00',
+        endTimeLabel: '--:--',
+        plannedStartTime: '10:00',
+        plannedEndTime: '10:15',
+      });
+    });
+
+    expect(result.current.isStartEditable).toBe(false);
+    expect(result.current.isEndEditable).toBe(true);
   });
 
   it('opens in read-only mode for viewers and blocks task changes', () => {

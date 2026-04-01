@@ -1,5 +1,7 @@
+import { CloseOutlined } from '@hangar/react-native-icons/core/interaction';
 import React from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -10,13 +12,19 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-
-import { CloseOutlined } from '@hangar/react-native-icons/core/interaction';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type {
   TaskEditModalController,
   TaskEditTarget,
 } from '@/presentation/controllers/use-task-edit-modal-controller';
+import { getBottomSystemSpacing } from '@/presentation/utils/native-safe-area';
+
+type TaskEditTextProps = {
+  variant?: string;
+  style?: StyleProp<TextStyle>;
+  children?: React.ReactNode;
+};
 
 type TaskEditModalStyleSet = {
   taskEditModalOverlay: StyleProp<ViewStyle>;
@@ -62,7 +70,7 @@ type TaskEditModalVariants = {
 
 type TaskEditModalProps<TTask extends TaskEditTarget> = {
   controller: TaskEditModalController<TTask>;
-  TextComponent: React.ComponentType<any>;
+  TextComponent: React.ComponentType<TaskEditTextProps>;
   modalStyles: TaskEditModalStyleSet;
   labels?: Partial<TaskEditModalLabels>;
   variants?: Partial<TaskEditModalVariants>;
@@ -92,9 +100,23 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
   modalStyles,
   labels,
   variants,
-}: TaskEditModalProps<TTask>) => {
+}: TaskEditModalProps<TTask>): JSX.Element => {
   const resolvedLabels = { ...DEFAULT_LABELS, ...labels };
   const resolvedVariants = { ...DEFAULT_VARIANTS, ...variants };
+  const insets = useSafeAreaInsets();
+  const bottomSafeSpacing = getBottomSystemSpacing(insets.bottom);
+  const enabledInputStyle = {
+    backgroundColor: '#ffffff',
+    borderColor: '#8d8d8d',
+    color: '#303030',
+    opacity: 1,
+  } as const;
+  const disabledInputStyle = {
+    backgroundColor: '#f3f3f3',
+    borderColor: '#d4d4d4',
+    color: '#8d8d8d',
+    opacity: 0.75,
+  } as const;
 
   return (
     <Modal
@@ -113,7 +135,11 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
 
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ width: '100%', alignItems: 'center' }}
+          style={{
+            width: '100%',
+            alignItems: 'center',
+            paddingBottom: bottomSafeSpacing,
+          }}
         >
           <View style={modalStyles.taskEditModalCard}>
             <View style={modalStyles.taskEditModalHeader}>
@@ -146,8 +172,14 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
                       onChangeText={controller.changeEndTime}
                       placeholder="00:00"
                       placeholderTextColor="#8d8d8d"
-                      style={modalStyles.taskEditModalInput}
+                      style={[
+                        modalStyles.taskEditModalInput,
+                        controller.isEndEditable
+                          ? enabledInputStyle
+                          : disabledInputStyle,
+                      ]}
                       editable={controller.isEndEditable}
+                      selectTextOnFocus={controller.isEndEditable}
                       keyboardType="numbers-and-punctuation"
                     />
                   </View>
@@ -165,8 +197,14 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
                         onChangeText={controller.changeStartTime}
                         placeholder="00:00"
                         placeholderTextColor="#8d8d8d"
-                        style={modalStyles.taskEditModalInput}
+                        style={[
+                          modalStyles.taskEditModalInput,
+                          controller.isStartEditable
+                            ? enabledInputStyle
+                            : disabledInputStyle,
+                        ]}
                         editable={controller.isStartEditable}
+                        selectTextOnFocus={controller.isStartEditable}
                         keyboardType="numbers-and-punctuation"
                       />
                     </View>
@@ -183,8 +221,14 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
                         onChangeText={controller.changeEndTime}
                         placeholder="00:00"
                         placeholderTextColor="#8d8d8d"
-                        style={modalStyles.taskEditModalInput}
+                        style={[
+                          modalStyles.taskEditModalInput,
+                          controller.isEndEditable
+                            ? enabledInputStyle
+                            : disabledInputStyle,
+                        ]}
                         editable={controller.isEndEditable}
+                        selectTextOnFocus={controller.isEndEditable}
                         keyboardType="numbers-and-punctuation"
                       />
                     </View>
@@ -228,12 +272,28 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
                 onPress={controller.resetTask}
                 disabled={!controller.canResetTask || controller.actionLoading}
               >
-                <TextComponent
-                  variant={resolvedVariants.button}
-                  style={modalStyles.taskEditModalRestartButtonText}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
                 >
-                  {resolvedLabels.restartLabel}
-                </TextComponent>
+                  {controller.actionLoading &&
+                  controller.activeAction === 'reset' ? (
+                    <ActivityIndicator size="small" color="#0a0e80" />
+                  ) : null}
+                  <TextComponent
+                    variant={resolvedVariants.button}
+                    style={modalStyles.taskEditModalRestartButtonText}
+                  >
+                    {controller.actionLoading &&
+                    controller.activeAction === 'reset'
+                      ? resolvedLabels.submittingLabel
+                      : resolvedLabels.restartLabel}
+                  </TextComponent>
+                </View>
               </Pressable>
 
               <View style={modalStyles.taskEditModalFooter}>
@@ -264,14 +324,28 @@ export const TaskEditModal = <TTask extends TaskEditTarget>({
                     controller.actionLoading
                   }
                 >
-                  <TextComponent
-                    variant={resolvedVariants.button}
-                    style={modalStyles.taskEditModalSubmitButtonText}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
                   >
-                    {controller.actionLoading
-                      ? resolvedLabels.submittingLabel
-                      : controller.primaryActionLabel}
-                  </TextComponent>
+                    {controller.actionLoading &&
+                    controller.activeAction === 'primary' ? (
+                      <ActivityIndicator size="small" color="#ffffff" />
+                    ) : null}
+                    <TextComponent
+                      variant={resolvedVariants.button}
+                      style={modalStyles.taskEditModalSubmitButtonText}
+                    >
+                      {controller.actionLoading &&
+                      controller.activeAction === 'primary'
+                        ? resolvedLabels.submittingLabel
+                        : controller.primaryActionLabel}
+                    </TextComponent>
+                  </View>
                 </Pressable>
               </View>
             </View>

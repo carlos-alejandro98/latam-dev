@@ -1,6 +1,10 @@
+import {
+  ArrowBackOutlined,
+  SearchOutlined,
+  SyncOutlined,
+} from '@hangar/react-native-icons/core/interaction';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Easing,
   Platform,
@@ -10,17 +14,19 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import {
-  ArrowBackOutlined,
-  SearchOutlined,
-  SyncOutlined,
-} from '@hangar/react-native-icons/core/interaction';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EditSquareOutlined } from '@/presentation/components/common/icons';
 import { Spinner, Text } from '@/presentation/components/design-system';
 import { TaskEditModal } from '@/presentation/components/task-edit-modal/task-edit-modal';
-import type { TaskEditModalController } from '@/presentation/controllers/use-task-edit-modal-controller';
 import type { FlightTaskActionTarget } from '@/presentation/controllers/use-flight-task-actions';
+import type { TaskEditModalController } from '@/presentation/controllers/use-task-edit-modal-controller';
+import { useSecondTimestamp } from '@/presentation/hooks/use-second-timestamp';
+import { getBottomSystemSpacing } from '@/presentation/utils/native-safe-area';
+import {
+  resolveFrozenPushOutDelaySeconds,
+  resolveSecondsToAvailableEnd,
+} from '@/presentation/view-models/flight-available-time';
 import type {
   TabletFlightDetailViewModel,
   TabletFlightLegViewModel,
@@ -60,12 +66,84 @@ interface TabletFlightDetailProps {
   ) => Promise<unknown>;
 }
 
-const nowHHmm = (): string => {
-  const currentDate = new Date();
-  return `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
+const formatHHMMSS = (totalSeconds: number): string => {
+  const absoluteSeconds = Math.abs(totalSeconds);
+  const hours = Math.floor(absoluteSeconds / 3600);
+  const minutes = Math.floor((absoluteSeconds % 3600) / 60);
+  const seconds = absoluteSeconds % 60;
+
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
-const renderFlightLeg = (leg: TabletFlightLegViewModel) => (
+interface TempoDisponivelProps {
+  availableEndDate: string | null;
+  availableEndTime: string | null;
+  pushOutTime: string | null;
+  allTasksCompleted: boolean;
+}
+
+const TempoDisponivelLive = ({
+  availableEndDate,
+  availableEndTime,
+  pushOutTime,
+  allTasksCompleted,
+}: TempoDisponivelProps): JSX.Element => {
+  const nowMs = useSecondTimestamp();
+  const seconds = resolveSecondsToAvailableEnd({
+    endDate: availableEndDate,
+    endTime: availableEndTime,
+    nowTimestamp: nowMs,
+  });
+  const pushOutDelaySeconds = resolveFrozenPushOutDelaySeconds({
+    endDate: availableEndDate,
+    endTime: availableEndTime,
+    pushOut: pushOutTime,
+  });
+  const [completedFrozenSeconds, setCompletedFrozenSeconds] = useState<
+    number | null
+  >(null);
+
+  useEffect(() => {
+    if (pushOutDelaySeconds !== null) {
+      if (completedFrozenSeconds !== null) {
+        setCompletedFrozenSeconds(null);
+      }
+      return;
+    }
+
+    if (
+      allTasksCompleted &&
+      completedFrozenSeconds === null &&
+      seconds !== null
+    ) {
+      setCompletedFrozenSeconds(seconds);
+    }
+
+    if (!allTasksCompleted && completedFrozenSeconds !== null) {
+      setCompletedFrozenSeconds(null);
+    }
+  }, [allTasksCompleted, completedFrozenSeconds, pushOutDelaySeconds, seconds]);
+
+  const displaySeconds = pushOutDelaySeconds ?? completedFrozenSeconds ?? seconds;
+  const textColor =
+    displaySeconds !== null && displaySeconds < 0
+      ? '#C8001E'
+      : styles.tatValue.color;
+
+  return (
+    <Text
+      variant="heading-md"
+      style={{
+        ...styles.tatValue,
+        color: textColor,
+      }}
+    >
+      {displaySeconds === null ? '--:--:--' : formatHHMMSS(displaySeconds)}
+    </Text>
+  );
+};
+
+const renderFlightLeg = (leg: TabletFlightLegViewModel): JSX.Element => (
   <View style={styles.flightBlock}>
     <View style={styles.flightCardHeader}>
       <View style={styles.flightHeaderTitleRow}>
@@ -152,7 +230,7 @@ const renderFlightLeg = (leg: TabletFlightLegViewModel) => (
   </View>
 );
 
-const renderContentState = (message: string) => (
+const renderContentState = (message: string): JSX.Element => (
   <View style={styles.detailMessage}>
     <View style={styles.detailMessageCard}>
       <Text variant="label-lg">{message}</Text>
@@ -160,35 +238,30 @@ const renderContentState = (message: string) => (
   </View>
 );
 
-const renderStatusBadge = (task: TabletFlightTaskViewModel) => {
+const getTaskActionStyle = (
+  task: TabletFlightTaskViewModel,
+): object => {
   if (task.statusTone === 'completed') {
-    return (
-      <View style={styles.statusBadgeCompleted}>
-        <Text variant="label-sm" style={styles.statusBadgeCompletedText}>
-          {task.statusLabel}
-        </Text>
-      </View>
-    );
+    return styles.taskActionCompleted;
   }
 
   if (task.statusTone === 'in_progress') {
-    return (
-      <View style={styles.statusBadgeInProgress}>
-        <View style={styles.inProgressDot} />
-        <Text variant="label-sm" style={styles.statusBadgeInProgressText}>
-          {task.statusLabel}
-        </Text>
-      </View>
-    );
+    return styles.taskActionInProgress;
   }
 
-  return (
-    <View style={styles.statusBadge}>
-      <Text variant="label-sm" style={styles.statusBadgeText}>
-        {task.statusLabel}
-      </Text>
-    </View>
-  );
+  return styles.taskActionPending;
+};
+
+const getTaskActionLabel = (task: TabletFlightTaskViewModel): string => {
+  if (task.statusTone === 'completed') {
+    return 'Finalizado';
+  }
+
+  if (task.statusTone === 'in_progress') {
+    return 'Terminar';
+  }
+
+  return 'Començar';
 };
 
 export const TabletFlightDetail = ({
@@ -206,14 +279,12 @@ export const TabletFlightDetail = ({
   onCategoryChange,
   onReload,
   taskEditModal,
-  onStartTask,
-  onFinishTask,
-  onCompleteHito,
-}: TabletFlightDetailProps) => {
+}: TabletFlightDetailProps): JSX.Element => {
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const bottomSafeSpacing = getBottomSystemSpacing(insets.bottom);
   const isMobile = Platform.OS !== 'web' && width < 768;
   const sidebarWidth = Math.max(360, Math.min(430, width * 0.33));
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const refreshSpinValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -258,78 +329,6 @@ export const TabletFlightDetail = ({
     void onReload();
   }, [onReload]);
 
-  const handleStart = useCallback(
-    async (task: TabletFlightTaskViewModel) => {
-      if (taskEditModal.isReadOnly || actionLoading) {
-        return;
-      }
-
-      setActionLoading(task.instanceId);
-      try {
-        await onStartTask(task, nowHHmm());
-      } finally {
-        setActionLoading(null);
-      }
-    },
-    [actionLoading, onStartTask, taskEditModal.isReadOnly],
-  );
-
-  const handleFinish = useCallback(
-    async (task: TabletFlightTaskViewModel) => {
-      if (taskEditModal.isReadOnly || actionLoading) {
-        return;
-      }
-
-      setActionLoading(task.instanceId);
-      try {
-        await onFinishTask(task, nowHHmm());
-      } finally {
-        setActionLoading(null);
-      }
-    },
-    [actionLoading, onFinishTask, taskEditModal.isReadOnly],
-  );
-
-  const handleCompleteHito = useCallback(
-    async (task: TabletFlightTaskViewModel) => {
-      if (taskEditModal.isReadOnly || actionLoading) {
-        return;
-      }
-
-      const time = nowHHmm();
-      const onlyFinish = Boolean(task.realStartTime);
-
-      if (onCompleteHito) {
-        setActionLoading(task.instanceId);
-        try {
-          await onCompleteHito(task, time, onlyFinish);
-        } finally {
-          setActionLoading(null);
-        }
-        return;
-      }
-
-      setActionLoading(task.instanceId);
-      try {
-        if (onlyFinish) {
-          await onFinishTask(task, time);
-        } else {
-          await onStartTask(task, time);
-          await onFinishTask({ ...task, startTimeLabel: time }, time);
-        }
-      } finally {
-        setActionLoading(null);
-      }
-    },
-    [
-      actionLoading,
-      onCompleteHito,
-      onStartTask,
-      onFinishTask,
-      taskEditModal.isReadOnly,
-    ],
-  );
-
   if (loading && !viewModel) {
     return (
       <View style={styles.detailMessage}>
@@ -350,7 +349,16 @@ export const TabletFlightDetail = ({
     <>
       <View style={styles.container}>
         <View style={[styles.sidebar, { width: sidebarWidth }]}>
-          <ScrollView contentContainerStyle={styles.sidebarScrollContent}>
+          <ScrollView
+            contentContainerStyle={[
+              styles.sidebarScrollContent,
+              {
+                paddingBottom:
+                  (styles.sidebarScrollContent.paddingBottom ?? 0) +
+                  bottomSafeSpacing,
+              },
+            ]}
+          >
             <View style={styles.sidebarTop}>
               <Pressable style={styles.backButton} onPress={onBack}>
                 <ArrowBackOutlined size={24} color="#2c31c9" />
@@ -392,17 +400,12 @@ export const TabletFlightDetail = ({
                 TEMPO DISPONIVEL (TAT)
               </Text>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text
-                  variant="heading-md"
-                  style={{
-                    ...styles.tatValue,
-                    color: viewModel.header.availableTimeDelayed
-                      ? '#C8001E'
-                      : styles.tatValue.color,
-                  }}
-                >
-                  {viewModel.header.availableTimeLabel}
-                </Text>
+                <TempoDisponivelLive
+                  availableEndDate={viewModel.header.availableEndDate}
+                  availableEndTime={viewModel.header.availableEndTime}
+                  pushOutTime={viewModel.header.pushOutTime}
+                  allTasksCompleted={viewModel.header.allTasksCompleted}
+                />
                 {/* MTD oculto por el momento (no prioridad en la entrega actual). Descomentar para volver a mostrar.
                 <Text
                   variant="label-sm"
@@ -491,14 +494,19 @@ export const TabletFlightDetail = ({
 
           <ScrollView
             style={styles.taskScroll}
-            contentContainerStyle={styles.taskListContent}
+            contentContainerStyle={[
+              styles.taskListContent,
+              {
+                paddingBottom:
+                  (styles.taskListContent.paddingBottom ?? 0) +
+                  bottomSafeSpacing,
+              },
+            ]}
           >
             {loading && !filteredTasks.length
               ? renderContentState('Cargando procesos...')
               : filteredTasks.length
-                ? filteredTasks.map((task) => {
-                    const isActing = actionLoading === task.instanceId;
-
+              ? filteredTasks.map((task) => {
                     return (
                       <View key={task.instanceId} style={styles.taskCard}>
                         <View style={styles.taskCardHeader}>
@@ -644,102 +652,49 @@ export const TabletFlightDetail = ({
                                   style={[
                                     styles.taskAction,
                                     { backgroundColor: '#6B0FC7' },
-                                    (isActing || taskEditModal.isReadOnly) &&
+                                    taskEditModal.isReadOnly &&
                                       styles.taskActionBtnDisabled,
                                   ]}
-                                  disabled={isActing || taskEditModal.isReadOnly}
+                                  disabled={taskEditModal.isReadOnly}
                                   onPress={() => {
-                                    if (!isActing && !taskEditModal.isReadOnly) {
-                                      void handleCompleteHito(task);
+                                    if (!taskEditModal.isReadOnly) {
+                                      taskEditModal.open(task);
                                     }
                                   }}
                                 >
-                                  {isActing ? (
-                                    <ActivityIndicator
-                                      size="small"
-                                      color="#ffffff"
-                                    />
-                                  ) : (
-                                    <Text
-                                      variant="heading-xs"
-                                      style={styles.taskActionBtnText}
-                                    >
-                                      Marcar Marco
-                                    </Text>
-                                  )}
-                                </Pressable>
-                              )
-                            ) : task.statusTone === 'completed' ? (
-                              <View
-                                style={[
-                                  styles.taskAction,
-                                  styles.taskActionCompleted,
-                                ]}
-                              >
-                                <Text
-                                  variant="heading-xs"
-                                  style={styles.taskActionBtnFinalizadoText}
-                                >
-                                  Finalizado
-                                </Text>
-                              </View>
-                            ) : task.statusTone === 'in_progress' ? (
-                              <Pressable
-                                style={[
-                                  styles.taskAction,
-                                  styles.taskActionInProgress,
-                                  (isActing || taskEditModal.isReadOnly) &&
-                                    styles.taskActionBtnDisabled,
-                                ]}
-                                disabled={isActing || taskEditModal.isReadOnly}
-                                onPress={() => {
-                                  if (!isActing && !taskEditModal.isReadOnly) {
-                                    void handleFinish(task);
-                                  }
-                                }}
-                              >
-                                {isActing ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color="#ffffff"
-                                  />
-                                ) : (
                                   <Text
                                     variant="heading-xs"
                                     style={styles.taskActionBtnText}
                                   >
-                                    Terminar
+                                    Marcar Marco
                                   </Text>
-                                )}
-                              </Pressable>
+                                </Pressable>
+                              )
                             ) : (
                               <Pressable
                                 style={[
                                   styles.taskAction,
-                                  styles.taskActionPending,
-                                  (isActing || taskEditModal.isReadOnly) &&
+                                  getTaskActionStyle(task),
+                                  taskEditModal.isReadOnly &&
                                     styles.taskActionBtnDisabled,
                                 ]}
-                                disabled={isActing || taskEditModal.isReadOnly}
+                                disabled={taskEditModal.isReadOnly}
                                 onPress={() => {
-                                  if (!isActing && !taskEditModal.isReadOnly) {
-                                    void handleStart(task);
+                                  if (!taskEditModal.isReadOnly) {
+                                    taskEditModal.open(task);
                                   }
                                 }}
                               >
-                                {isActing ? (
-                                  <ActivityIndicator
-                                    size="small"
-                                    color="#ffffff"
-                                  />
-                                ) : (
-                                  <Text
-                                    variant="heading-xs"
-                                    style={styles.taskActionBtnText}
-                                  >
-                                    Començar
-                                  </Text>
-                                )}
+                                <Text
+                                  variant="heading-xs"
+                                  style={
+                                    task.statusTone === 'completed'
+                                      ? styles.taskActionBtnFinalizadoText
+                                      : styles.taskActionBtnText
+                                  }
+                                >
+                                  {getTaskActionLabel(task)}
+                                </Text>
                               </Pressable>
                             )}
                           </View>

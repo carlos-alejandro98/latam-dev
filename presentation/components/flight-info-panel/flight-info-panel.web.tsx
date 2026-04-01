@@ -20,6 +20,10 @@ import {
 } from '@/presentation/components/design-system';
 import { FlightGanttTimeline } from '@/presentation/components/flight-gantt-timeline';
 import { useSecondTimestamp } from '@/presentation/hooks/use-second-timestamp';
+import {
+  resolveFrozenPushOutDelaySeconds,
+  resolveSecondsToAvailableEnd,
+} from '@/presentation/view-models/flight-available-time';
 
 import { FlightInfoEventsPanel } from './flight-info-events-panel';
 import { styles } from './flight-info-panel.styles.web';
@@ -138,32 +142,6 @@ const WARNING_SECONDS = 5 * 60;
  * Positive  = STD is still in the future → black countdown, decreasing.
  * Negative  = STD has passed today       → red, absolute value shown.
  */
-const computeSecondsToStd = (
-  _stdDate: string | null, // kept for API compatibility, not used for date resolution
-  stdTime: string | null,
-  nowMs: number,
-): number | null => {
-  if (!stdTime) return null;
-  const [hStr, mStr] = stdTime.split(':');
-  const h = Number(hStr);
-  const m = Number(mStr);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-
-  // Always anchor to today's local date so the countdown is always meaningful.
-  const now = new Date(nowMs);
-  const stdMs = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    h,
-    m,
-    0,
-    0,
-  ).getTime();
-
-  return Math.round((stdMs - nowMs) / 1000);
-};
-
 /**
  * Formats absolute seconds as "HH:MM:SS" — no sign, always positive display.
  * The caller decides the color (red = overdue, black = remaining).
@@ -204,31 +182,68 @@ const AnimatedChar = ({ char, color }: { char: string; color: string }) => {
 };
 
 type TempoDisponivelProps = {
-  stdDate: string | null;
-  stdTime: string | null;
+  availableEndDate: string | null;
+  availableEndTime: string | null;
+  pushOutTime: string | null;
   allTasksCompleted: boolean;
 };
 
 const TempoDisponivelLive = ({
-  stdDate,
-  stdTime,
+  availableEndDate,
+  availableEndTime,
+  pushOutTime,
   allTasksCompleted,
 }: TempoDisponivelProps) => {
   const nowMs = useSecondTimestamp();
   const seconds = useMemo(
-    () => computeSecondsToStd(stdDate, stdTime, nowMs),
-    [stdDate, stdTime, nowMs],
+    () =>
+      resolveSecondsToAvailableEnd({
+        endDate: availableEndDate,
+        endTime: availableEndTime,
+        nowTimestamp: nowMs,
+      }),
+    [availableEndDate, availableEndTime, nowMs],
+  );
+  const pushOutDelaySeconds = useMemo(
+    () =>
+      resolveFrozenPushOutDelaySeconds({
+        endDate: availableEndDate,
+        endTime: availableEndTime,
+        pushOut: pushOutTime,
+      }),
+    [availableEndDate, availableEndTime, pushOutTime],
   );
 
-  const [frozenSeconds, setFrozenSeconds] = useState<number | null>(null);
+  const [completedFrozenSeconds, setCompletedFrozenSeconds] = useState<
+    number | null
+  >(null);
   useEffect(() => {
-    if (allTasksCompleted && frozenSeconds === null && seconds !== null) {
-      setFrozenSeconds(seconds);
+    if (pushOutDelaySeconds !== null) {
+      if (completedFrozenSeconds !== null) {
+        setCompletedFrozenSeconds(null);
+      }
+      return;
     }
-    if (!allTasksCompleted) setFrozenSeconds(null);
-  }, [allTasksCompleted, seconds, frozenSeconds]);
 
-  const displaySeconds = frozenSeconds ?? seconds;
+    if (
+      allTasksCompleted &&
+      completedFrozenSeconds === null &&
+      seconds !== null
+    ) {
+      setCompletedFrozenSeconds(seconds);
+    }
+
+    if (!allTasksCompleted && completedFrozenSeconds !== null) {
+      setCompletedFrozenSeconds(null);
+    }
+  }, [
+    allTasksCompleted,
+    completedFrozenSeconds,
+    pushOutDelaySeconds,
+    seconds,
+  ]);
+
+  const displaySeconds = pushOutDelaySeconds ?? completedFrozenSeconds ?? seconds;
 
   if (displaySeconds === null) {
     return (
@@ -248,6 +263,7 @@ const TempoDisponivelLive = ({
 
   const isRed = displaySeconds < 0;
   const isPulsing =
+    pushOutDelaySeconds === null &&
     !allTasksCompleted &&
     displaySeconds >= 0 &&
     displaySeconds <= WARNING_SECONDS;
@@ -454,8 +470,9 @@ export const FlightInfoPanel = ({
                   TEMPO DISPONÍVEL
                 </Text>
                 <TempoDisponivelLive
-                  stdDate={viewModel.summary.stdDate}
-                  stdTime={viewModel.summary.stdTime}
+                  availableEndDate={viewModel.summary.availableEndDate}
+                  availableEndTime={viewModel.summary.availableEndTime}
+                  pushOutTime={viewModel.summary.pushOutTime}
                   allTasksCompleted={viewModel.summary.allTasksCompleted}
                 />
                 {/* MTD oculto por el momento (no prioridad en la entrega actual). Descomentar para volver a mostrar.

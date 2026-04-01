@@ -6,6 +6,7 @@ import type {
 } from '@/domain/entities/flight-gantt';
 import {
   resolveAvailableTime,
+  resolveConfirmedPushOutTime,
   resolveMtd,
   resolveTaskImpactSummary,
   type FlightMtdTone,
@@ -44,10 +45,16 @@ export interface FlightInfoPanelSummaryViewModel {
   availableTimeDelayed: boolean;
   mtdLabel: string;
   mtdTone: FlightMtdTone;
-  /** STD date string (e.g. "2026-03-27") — used to drive the live hh:mm:ss countdown */
+  /** Countdown target date (ETD when present, otherwise STD). */
+  availableEndDate: string | null;
+  /** Countdown target time (ETD when present, otherwise STD). */
+  availableEndTime: string | null;
+  /** STD date string retained for other summary consumers. */
   stdDate: string | null;
-  /** STD time string (e.g. "18:15") — used to drive the live hh:mm:ss countdown */
+  /** STD time string retained for other summary consumers. */
   stdTime: string | null;
+  /** Confirmed push-back timestamp used to freeze the countdown. */
+  pushOutTime: string | null;
   /** True when every gantt task has a real finish time — stops the countdown */
   allTasksCompleted: boolean;
 }
@@ -165,6 +172,18 @@ const formatTimeValue = (
   return value;
 };
 
+const ganttDateTimeToIsoString = (
+  value?: GanttDateTime,
+): string | null => {
+  if (!value || value.length < 5) {
+    return null;
+  }
+
+  const [year, month, day, hours, minutes] = value;
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+};
+
 const formatEtdDisplayValue = (
   stdTime?: string | null,
   etdTime?: string | null,
@@ -257,6 +276,8 @@ const buildSigaItems = (
     timeLabel: getEventTimeLabel(task),
     description: task.taskName,
     source: 'SIGA',
+    taskInstanceId: task.instanceId,
+    sortTimestamp: getComparableTaskTimestamp(task),
   }));
 };
 
@@ -275,12 +296,11 @@ const buildHitoItems = (
     if (task.inicioReal) {
       const delayMin = Math.max(0, task.varianzaInicio ?? 0);
       const isDelayed = delayMin > 0;
-      const suffix = isDelayed ? ` (${delayMin} min de demora)` : ' a tiempo';
 
       items.push({
         id: `${task.instanceId}-start`,
         timeLabel: formatTimeValue(task.inicioReal),
-        description: `Iniciado${suffix}: ${task.taskName}`,
+        description: `Início ${task.taskName}`,
         source: 'INICIO',
         eventType: 'started',
         isDelayed,
@@ -292,12 +312,11 @@ const buildHitoItems = (
     if (task.finReal) {
       const delayMin = Math.max(0, task.varianzaFin ?? 0);
       const isDelayed = delayMin > 0;
-      const suffix = isDelayed ? ` (${delayMin} min de demora)` : ' a tiempo';
 
       items.push({
         id: `${task.instanceId}-end`,
         timeLabel: formatTimeValue(task.finReal),
-        description: `Finalizado${suffix}: ${task.taskName}`,
+        description: `Fim ${task.taskName}`,
         source: 'FIN',
         eventType: 'finished',
         isDelayed,
@@ -364,8 +383,13 @@ export const createFlightInfoPanelViewModel = (
     ganttFlight?.estimatedPushIn ??
     flight.estimatedPushIn ??
     flight.pushIn;
-  /** Solo `pushOut` de API — no usar ETD como sustituto (PUSH-BACK ≠ ETD). */
-  const pushOutValue = flight.pushOut;
+  const pushOutValue = ganttFlight?.pushOut ?? flight.pushOut;
+  const pushOutIsoValue =
+    ganttDateTimeToIsoString(ganttFlight?.pushOut) ?? flight.pushOut ?? null;
+  const confirmedPushOutIsoValue = resolveConfirmedPushOutTime({
+    pushOut: pushOutIsoValue,
+    tasks: timelineTasks,
+  });
   const isArrivalReal = Boolean(ganttFlight?.ata ?? flight.ata);
   const tatMinutes =
     ganttSummary?.tatVueloMinutos ??
@@ -453,8 +477,11 @@ export const createFlightInfoPanelViewModel = (
       availableTimeDelayed: availableTime.isDelayed,
       mtdLabel: mtd.label,
       mtdTone: mtd.tone,
+      availableEndDate: availableEndDate ?? null,
+      availableEndTime: availableEndTime ?? null,
       stdDate: flight.stdDate ?? null,
       stdTime: flight.stdTime ?? null,
+      pushOutTime: confirmedPushOutIsoValue,
       allTasksCompleted:
         timelineTasks.length > 0 &&
         timelineTasks.every(
@@ -483,7 +510,7 @@ export const createFlightInfoPanelViewModel = (
       stdTime: flight.stdTime,
       etdDate: flight.etdDate,
       etdTime: flight.etdTime,
-      pushOutTime: flight.pushOut,
+      pushOutTime: pushOutIsoValue,
       tasks: timelineTasks,
       tatVueloMinutos: tatMinutes,
     },

@@ -9,6 +9,7 @@ export const styles = {
     height: 84,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
     gap: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
@@ -20,6 +21,7 @@ export const styles = {
     justifyContent: 'center' as const,
   },
   headerTitle: {
+    flex: 1,
     color: '#303030',
     fontSize: 24,
   },
@@ -186,6 +188,8 @@ export const styles = {
     gap: 4,
   },
   itemRight: {
+    width: 184,
+    flexShrink: 0,
     alignItems: 'flex-end' as const,
     justifyContent: 'space-between' as const,
   },

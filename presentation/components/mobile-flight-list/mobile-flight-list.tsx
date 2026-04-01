@@ -5,16 +5,17 @@ import { useTheme } from 'styled-components';
 
 import type { Flight } from '@/domain/entities/flight';
 import { AppPressable } from '@/presentation/components/common/app-pressable';
-import { FlightListDateSelector } from '@/presentation/components/flight-list/flight-list-date-selector';
 import {
   CheckOutlined,
   DoubleCaretLeftOutlined,
   SearchOutlined,
   SyncOutlined,
 } from '@/presentation/components/common/icons';
+import { FlightListDateSelector } from '@/presentation/components/flight-list/flight-list-date-selector';
 import { getPanelColors } from '@/presentation/components/flight-list/flight-list-theme';
 import type { OrderKey } from '@/presentation/components/flight-list/flight-list.types';
 import { MobileText as Text } from '@/presentation/components/mobile/mobile-text';
+import { getBottomSystemSpacing } from '@/presentation/utils/native-safe-area';
 
 import { MobileFlightListContent } from './mobile-flight-list-content';
 import { styles } from './mobile-flight-list.styles';
@@ -69,6 +70,7 @@ export const MobileFlightList: React.FC<MobileFlightListProps> = ({
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const bottomSafeSpacing = getBottomSystemSpacing(insets.bottom);
   const colors = getPanelColors(theme);
   const handleRefreshPress = () => {
     onRefresh?.();
@@ -188,7 +190,12 @@ export const MobileFlightList: React.FC<MobileFlightListProps> = ({
         </View>
       </View>
 
-      <View style={styles.body}>
+      <View
+        style={{
+          ...styles.body,
+          paddingBottom: bottomSafeSpacing,
+        }}
+      >
         <MobileFlightListContent
           flights={flights}
           selectedFlightId={selectedFlightId}

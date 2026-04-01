@@ -1,12 +1,20 @@
-import {
-  DoubleCaretLeftOutlined,
-  DoubleCaretRightOutlined,
-} from '@hangar/react-icons/core/interaction';
 import { UnarchiveOutlined } from '@hangar/react-icons/core/interaction/UnarchiveOutlined';
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  type JSX,
+} from 'react';
 import { useSelector } from 'react-redux';
 import { useTheme } from 'styled-components';
 
+import {
+  DoubleCaretLeftOutlined,
+  DoubleCaretRightOutlined,
+  EditSquareOutlined,
+} from '@/presentation/components/common/icons';
 import { Box, Text } from '@/presentation/components/design-system';
 import type {
   FlightInfoPanelEventItemViewModel,
@@ -46,154 +54,260 @@ type FlightInfoEventsPanelProps = {
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-const getPanelColors = (theme: ReturnType<typeof useTheme>) => ({
+type PanelColors = {
+  borderPrimary: string;
+  interactionSoftDefault: string;
+  surfaceSecondary: string;
+  textPrimary: string;
+  textSecondary: string;
+};
+
+const getPanelColors = (theme: ReturnType<typeof useTheme>): PanelColors => ({
   borderPrimary: theme?.tokens?.color?.border?.primary ?? '#d9d9d9',
   interactionSoftDefault:
     theme?.tokens?.color?.interaction?.softDefault ?? '#2c31c9',
   surfaceSecondary: theme?.tokens?.color?.surface?.secondary ?? '#f2f2f2',
-  surfaceInfoSoft: '#E7E8FD',
   textPrimary: theme?.tokens?.color?.text?.primary ?? '#3a3a3a',
   textSecondary: theme?.tokens?.color?.text?.secondary ?? '#626262',
 });
 
-/** Build the human-readable description for a session event */
-const buildSessionDescription = (
-  ev: SessionEvent,
-): { text: string; delayed: boolean } => {
-  const delay =
-    ev.isDelayed && ev.delayMinutes > 0
-      ? ` (${ev.delayMinutes} min de demora)`
-      : '';
-  const onTime = !ev.isDelayed ? ' a tiempo' : '';
-
-  if (ev.type === 'started') {
-    return {
-      text: `Iniciado${onTime}${delay}: ${ev.taskName}`,
-      delayed: ev.isDelayed,
-    };
-  }
-  if (ev.type === 'finished') {
-    return {
-      text: `Finalizado${onTime}${delay}: ${ev.taskName}, se finalizó la tarea a las ${ev.time}`,
-      delayed: ev.isDelayed,
-    };
-  }
-  return { text: `Actualizado: ${ev.taskName}`, delayed: false };
+type TimelineRowItem = {
+  id: string;
+  leftTimeLabel: string;
+  rightTimeLabel?: string | null;
+  description: string;
+  variant: 'default' | 'updated';
+  previousTime?: string | null;
+  nextTime?: string | null;
+  isNew?: boolean;
 };
 
-// ─── SessionHitoRow ──────────────────────────────────────────────────────────
-// Matches exactly the Hitos row layout: badge | time | description
-// Animates in with CSS keyframe when isNew=true
-const SessionHitoRow = ({
-  event,
-  isNew,
+const formatTimestampTimeLabel = (
+  timestamp: number,
+  fallback: string,
+): string => {
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+
+  return `${String(date.getHours()).padStart(2, '0')}:${String(
+    date.getMinutes(),
+  ).padStart(2, '0')}`;
+};
+
+const mapViewModelItemToTimelineRow = (
+  item: FlightInfoPanelEventItemViewModel,
+): TimelineRowItem => ({
+  id: item.id,
+  leftTimeLabel: item.timeLabel,
+  rightTimeLabel: item.timeLabel,
+  description: item.description,
+  variant: 'default',
+});
+
+const buildSessionTimelineRow = (
+  ev: SessionEvent,
+  isNew: boolean,
+  fallbackPreviousTime?: string | null,
+): TimelineRowItem => {
+  if (ev.type === 'started') {
+    return {
+      id: ev.id,
+      leftTimeLabel: formatTimestampTimeLabel(ev.timestamp, ev.time),
+      rightTimeLabel: ev.time,
+      description: `Início ${ev.taskName}`,
+      variant: 'default',
+      isNew,
+    };
+  }
+
+  if (ev.type === 'finished') {
+    return {
+      id: ev.id,
+      leftTimeLabel: formatTimestampTimeLabel(ev.timestamp, ev.time),
+      rightTimeLabel: ev.time,
+      description: `Fim ${ev.taskName}`,
+      variant: 'default',
+      isNew,
+    };
+  }
+
+  return {
+    id: ev.id,
+    leftTimeLabel: formatTimestampTimeLabel(ev.timestamp, ev.time),
+    description: `${ev.taskName} Atualizado`,
+    variant: 'updated',
+    previousTime: ev.previousTime ?? fallbackPreviousTime ?? null,
+    nextTime: ev.nextTime ?? ev.time ?? null,
+    isNew,
+  };
+};
+
+const TimelineRow = ({
+  item,
   colors,
 }: {
-  event: SessionEvent;
-  isNew: boolean;
-  colors: ReturnType<typeof getPanelColors>;
-}) => {
-  const { text, delayed } = buildSessionDescription(event);
+  item: TimelineRowItem;
+  colors: PanelColors;
+}): JSX.Element => {
+  const isUpdated = item.variant === 'updated';
+  const showResolvedTime = !isUpdated && Boolean(item.rightTimeLabel);
+  const showTimeChange =
+    isUpdated &&
+    item.previousTime &&
+    item.nextTime &&
+    item.previousTime !== item.nextTime;
 
   return (
     <Box
       style={{
-        ...styles.eventItem,
-        animation: isNew
+        ...styles.timelineRow,
+        animation: item.isNew
           ? 'hitoSlideIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) both'
           : undefined,
       }}
     >
-      {/* Badge — same size/style as SIGA badges */}
-      <Box
+      <Text
+        variant="label-sm"
         style={{
-          ...styles.eventBadge,
-          backgroundColor: delayed ? '#FFF0F0' : '#E7F7EE',
+          ...styles.timelineTime,
+          color: colors.textSecondary,
+          fontWeight: '400',
         }}
       >
-        <Text
-          variant="label-xs"
-          style={{ color: delayed ? '#C8001E' : '#07605B', fontWeight: '700' }}
-        >
-          {event.type === 'started'
-            ? 'INICIO'
-            : event.type === 'finished'
-              ? 'FIN'
-              : 'ACT.'}
-        </Text>
+        {item.leftTimeLabel}
+      </Text>
+
+      <Box style={styles.timelineMarkerColumn}>
+        {isUpdated ? (
+          <EditSquareOutlined size={18} color={colors.textSecondary} />
+        ) : (
+          <Box
+            style={{
+              ...styles.timelineDot,
+              backgroundColor: colors.interactionSoftDefault,
+            }}
+          />
+        )}
       </Box>
 
-      {/* Time + description */}
-      <Box style={styles.eventMeta}>
+      <Box style={styles.timelineContent}>
         <Text
-          variant="label-xs"
-          style={{ ...styles.eventTime, color: colors.textSecondary }}
-        >
-          {event.time}
-        </Text>
-        <Text
-          variant="label-xs"
+          variant="label-sm"
           style={{
-            ...styles.eventDescription,
-            color: delayed ? '#C8001E' : colors.textPrimary,
+            ...styles.timelineDescription,
+            color: colors.textPrimary,
+            fontWeight: '400',
           }}
         >
-          {text}
+          {item.description}
         </Text>
+
+        {showTimeChange ? (
+          <div style={styles.timelineChangeRow}>
+            <Text
+              variant="label-sm"
+              style={{
+                ...styles.timelineChangeTime,
+                color: colors.textSecondary,
+                fontWeight: '400',
+              }}
+            >
+              {item.previousTime}
+            </Text>
+            <span
+              style={{
+                ...styles.timelineChangeArrow,
+                color: colors.textPrimary,
+              }}
+            >
+              →
+            </span>
+            <Text
+              variant="label-sm"
+              style={{
+                ...styles.timelineChangeTime,
+                color: colors.textPrimary,
+                fontWeight: '700',
+              }}
+            >
+              {item.nextTime}
+            </Text>
+          </div>
+        ) : null}
       </Box>
+
+      {showResolvedTime ? (
+        <div style={styles.timelineResolvedTime}>
+          <span
+            style={{
+              ...styles.timelineResolvedArrow,
+              color: colors.textPrimary,
+            }}
+          >
+            →
+          </span>
+          <Text
+            variant="label-sm"
+            style={{
+              ...styles.timelineResolvedValue,
+              color: colors.textPrimary,
+              fontWeight: '700',
+            }}
+          >
+            {item.rightTimeLabel}
+          </Text>
+        </div>
+      ) : null}
     </Box>
   );
 };
 
-// ─── HitosList ───────────────────────────────────────────────────────────────
-// Renders: 1) SIGA task list, 2) hito events (inicioReal/finReal), 3) filtered session events
-const HitosList = ({
+const TimelineList = ({
   items,
-  hitoItems,
-  filteredSessionEvents,
   emptyMessage,
   colors,
+  autoScrollOnAppend = false,
 }: {
-  items: FlightInfoPanelEventItemViewModel[];
-  hitoItems: FlightInfoPanelEventItemViewModel[];
-  filteredSessionEvents: SessionEvent[];
+  items: TimelineRowItem[];
   emptyMessage: string;
-  colors: ReturnType<typeof getPanelColors>;
-}) => {
+  colors: PanelColors;
+  autoScrollOnAppend?: boolean;
+}): JSX.Element => {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const prevLen = useRef(filteredSessionEvents.length);
-  const newestId = useRef<string | null>(null);
+  const previousCountRef = useRef(items.length);
 
   useEffect(() => {
+    if (!autoScrollOnAppend) {
+      return;
+    }
+
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-      });
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }
     });
-  }, []);
+  }, [autoScrollOnAppend]);
 
   useEffect(() => {
-    if (filteredSessionEvents.length > prevLen.current) {
-      const newest =
-        filteredSessionEvents[filteredSessionEvents.length - 1];
-      newestId.current = newest?.id ?? null;
+    if (!autoScrollOnAppend) {
+      return;
+    }
+
+    if (items.length > previousCountRef.current) {
       requestAnimationFrame(() => {
         if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
       });
     }
-    prevLen.current = filteredSessionEvents.length;
-  }, [filteredSessionEvents]);
 
-  const hasContent =
-    items.length > 0 ||
-    hitoItems.length > 0 ||
-    filteredSessionEvents.length > 0;
+    previousCountRef.current = items.length;
+  }, [autoScrollOnAppend, items.length]);
 
-  if (!hasContent) {
+  if (!items.length) {
     return (
       <Box style={styles.eventsEmptyState}>
         <Text variant="label-sm" color="secondary">
@@ -207,108 +321,92 @@ const HitosList = ({
     <div
       ref={scrollRef}
       style={{
-        flex: 1,
-        overflowY: 'auto',
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-        paddingTop: 20,
-        paddingBottom: 20,
-        paddingLeft: 16,
-        paddingRight: 16,
-        boxSizing: 'border-box',
+        ...styles.timelineList,
       }}
     >
-      {/* SIGA tasks — full task list */}
       {items.map((item) => (
-        <Box key={item.id} style={styles.eventItem}>
-          {item.source && (
-            <Box
-              style={{
-                ...styles.eventBadge,
-                backgroundColor: colors.surfaceInfoSoft,
-              }}
-            >
-              <Text
-                variant="label-xs"
-                style={{
-                  color: colors.interactionSoftDefault,
-                  fontWeight: '700',
-                }}
-              >
-                {item.source}
-              </Text>
-            </Box>
-          )}
-          <Box style={styles.eventMeta}>
-            <Text
-              variant="label-xs"
-              style={{ ...styles.eventTime, color: colors.textSecondary }}
-            >
-              {item.timeLabel}
-            </Text>
-            <Text
-              variant="label-xs"
-              style={{ ...styles.eventDescription, color: colors.textPrimary }}
-            >
-              {item.description}
-            </Text>
-          </Box>
-        </Box>
-      ))}
-
-      {/* Hito events — persistent events from inicioReal/finReal */}
-      {hitoItems.map((item) => (
-        <Box key={item.id} style={styles.eventItem}>
-          {item.source && (
-            <Box
-              style={{
-                ...styles.eventBadge,
-                backgroundColor: item.isDelayed ? '#FFF0F0' : '#E7F7EE',
-              }}
-            >
-              <Text
-                variant="label-xs"
-                style={{
-                  color: item.isDelayed ? '#C8001E' : '#07605B',
-                  fontWeight: '700',
-                }}
-              >
-                {item.source}
-              </Text>
-            </Box>
-          )}
-          <Box style={styles.eventMeta}>
-            <Text
-              variant="label-xs"
-              style={{ ...styles.eventTime, color: colors.textSecondary }}
-            >
-              {item.timeLabel}
-            </Text>
-            <Text
-              variant="label-xs"
-              style={{
-                ...styles.eventDescription,
-                color: item.isDelayed ? '#C8001E' : colors.textPrimary,
-              }}
-            >
-              {item.description}
-            </Text>
-          </Box>
-        </Box>
-      ))}
-
-      {/* Session events — only those not yet synced to API, slide-in animation on newest */}
-      {filteredSessionEvents.map((ev) => (
-        <SessionHitoRow
-          key={ev.id}
-          event={ev}
-          isNew={ev.id === newestId.current}
-          colors={colors}
-        />
+        <TimelineRow key={item.id} item={item} colors={colors} />
       ))}
     </div>
+  );
+};
+
+// ─── HitosList ───────────────────────────────────────────────────────────────
+const HitosList = ({
+  items,
+  hitoItems,
+  filteredSessionEvents,
+  emptyMessage,
+  colors,
+}: {
+  items: FlightInfoPanelEventItemViewModel[];
+  hitoItems: FlightInfoPanelEventItemViewModel[];
+  filteredSessionEvents: SessionEvent[];
+  emptyMessage: string;
+  colors: PanelColors;
+}): JSX.Element => {
+  const previousSessionCountRef = useRef(filteredSessionEvents.length);
+  const [newestSessionEventId, setNewestSessionEventId] = useState<string | null>(
+    null,
+  );
+
+  const fallbackTimeByTaskInstanceId = useMemo(() => {
+    const result = new Map<string, string>();
+
+    for (const item of items) {
+      if (item.taskInstanceId && !result.has(item.taskInstanceId)) {
+        result.set(item.taskInstanceId, item.timeLabel);
+      }
+    }
+
+    for (const item of hitoItems) {
+      if (item.taskInstanceId && !result.has(item.taskInstanceId)) {
+        result.set(item.taskInstanceId, item.timeLabel);
+      }
+    }
+
+    return result;
+  }, [hitoItems, items]);
+
+  useEffect(() => {
+    if (filteredSessionEvents.length > previousSessionCountRef.current) {
+      setNewestSessionEventId(
+        filteredSessionEvents[filteredSessionEvents.length - 1]?.id ?? null,
+      );
+    }
+
+    previousSessionCountRef.current = filteredSessionEvents.length;
+  }, [filteredSessionEvents]);
+
+  const timelineItems = useMemo<TimelineRowItem[]>(() => {
+    return [
+      ...items.map(mapViewModelItemToTimelineRow),
+      ...hitoItems.map(mapViewModelItemToTimelineRow),
+      ...filteredSessionEvents.map((event) =>
+        buildSessionTimelineRow(
+          event,
+          event.id === newestSessionEventId,
+          event.taskInstanceId
+            ? fallbackTimeByTaskInstanceId.get(event.taskInstanceId)
+            : null,
+        ),
+      ),
+    ];
+  }, [
+    fallbackTimeByTaskInstanceId,
+    filteredSessionEvents,
+    hitoItems,
+    items,
+    newestSessionEventId,
+  ]);
+
+  return (
+    <TimelineList
+      items={timelineItems}
+      emptyMessage={emptyMessage}
+      colors={colors}
+      autoScrollOnAppend
+    />
   );
 };
 
@@ -320,78 +418,26 @@ const AlertasList = ({
 }: {
   items: FlightInfoPanelEventItemViewModel[];
   emptyMessage: string;
-  colors: ReturnType<typeof getPanelColors>;
-}) => {
-  if (!items.length) {
-    return (
-      <Box style={styles.eventsEmptyState}>
-        <Text variant="label-sm" color="secondary">
-          {emptyMessage}
-        </Text>
-      </Box>
-    );
-  }
+  colors: PanelColors;
+}): JSX.Element => {
+  const timelineItems = useMemo<TimelineRowItem[]>(
+    () => items.map(mapViewModelItemToTimelineRow),
+    [items],
+  );
 
   return (
-    <div
-      style={{
-        flex: 1,
-        overflowY: 'auto',
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-        paddingTop: 20,
-        paddingBottom: 20,
-        paddingLeft: 16,
-        paddingRight: 16,
-        boxSizing: 'border-box',
-      }}
-    >
-      {items.map((item) => (
-        <Box key={item.id} style={styles.eventItem}>
-          {item.source && (
-            <Box
-              style={{
-                ...styles.eventBadge,
-                backgroundColor: colors.surfaceInfoSoft,
-              }}
-            >
-              <Text
-                variant="label-xs"
-                style={{
-                  color: colors.interactionSoftDefault,
-                  fontWeight: '700',
-                }}
-              >
-                {item.source}
-              </Text>
-            </Box>
-          )}
-          <Box style={styles.eventMeta}>
-            <Text
-              variant="label-xs"
-              style={{ ...styles.eventTime, color: colors.textSecondary }}
-            >
-              {item.timeLabel}
-            </Text>
-            <Text
-              variant="label-xs"
-              style={{ ...styles.eventDescription, color: colors.textPrimary }}
-            >
-              {item.description}
-            </Text>
-          </Box>
-        </Box>
-      ))}
-    </div>
+    <TimelineList
+      items={timelineItems}
+      emptyMessage={emptyMessage}
+      colors={colors}
+    />
   );
 };
 
 // ─── FlightInfoEventsPanel ───────────────────────────────────────────────────
 export const FlightInfoEventsPanel = ({
   events,
-}: FlightInfoEventsPanelProps) => {
+}: FlightInfoEventsPanelProps): JSX.Element => {
   const theme = useTheme();
   const colors = getPanelColors(theme);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -514,7 +560,7 @@ export const FlightInfoEventsPanel = ({
           }}
           aria-label="Colapsar eventos de vuelo"
         >
-          <DoubleCaretRightOutlined size={24} color={colors.textPrimary} />
+          <DoubleCaretRightOutlined size={32} color={colors.textPrimary} />
         </button>
         <Text variant="heading-xs">{events.title}</Text>
       </Box>

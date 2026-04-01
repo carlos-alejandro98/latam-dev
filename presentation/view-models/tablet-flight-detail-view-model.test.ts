@@ -107,6 +107,7 @@ const buildGantt = (tasks: FlightGanttTask[]): FlightGantt => ({
     origin: baseFlight.origin,
     destination: baseFlight.destination,
     ata: null,
+    pushOut: null,
     pushIn: null,
     estimatedPushIn: [2025, 12, 1, 9, 12],
     parkPositionArrival: 'A1',
@@ -145,6 +146,74 @@ describe('createTabletFlightDetailViewModel', () => {
     expect(result.header.availableTimeDelayed).toBe(true);
     expect(result.header.mtdLabel).toBe('MTD 00:00');
     expect(result.header.mtdTone).toBe('neutral');
+    expect(result.header.availableEndDate).toBe(baseFlight.etdDate);
+    expect(result.header.availableEndTime).toBe(baseFlight.etdTime);
+    expect(result.header.stdDate).toBe(baseFlight.stdDate);
+    expect(result.header.stdTime).toBe(baseFlight.stdTime);
+    expect(result.header.pushOutTime).toBeNull();
+    expect(result.header.allTasksCompleted).toBe(false);
+  });
+
+  it('marks allTasksCompleted only when every gantt task is completed', () => {
+    const result = createTabletFlightDetailViewModel(
+      baseFlight,
+      buildGantt([
+        buildTask({
+          estado: 'COMPLETED',
+          finReal: [2025, 12, 1, 10, 20],
+        }),
+      ]),
+    );
+
+    expect(result.header.allTasksCompleted).toBe(true);
+  });
+
+  it('keeps the real push-back timestamp in the header once it exists', () => {
+    const result = createTabletFlightDetailViewModel(
+      {
+        ...baseFlight,
+        pushOut: '2025-12-01T06:53:00',
+      },
+      null,
+    );
+
+    expect(result.header.pushOutTime).toBeNull();
+    expect(result.departure.actionTimeValue).toBe('06:53');
+  });
+
+  it('prefers the refreshed gantt push-back over the stale flight push-back', () => {
+    const result = createTabletFlightDetailViewModel(
+      baseFlight,
+      buildGantt([buildTask()]),
+    );
+
+    const refreshedGantt = buildGantt([
+      buildTask(),
+      buildTask({
+        taskId: 'push-back',
+        instanceId: 'push-back-instance',
+        taskName: 'Push Back',
+        tipoEvento: 'HITO',
+        estado: 'COMPLETED',
+        inicioReal: [2025, 12, 1, 6, 53],
+        finReal: null,
+        duracionReal: null,
+        inicioProgramado: [2025, 12, 1, 6, 53],
+        finProgramado: [2025, 12, 1, 6, 53],
+        inicioCalculado: [2025, 12, 1, 6, 53],
+        finCalculado: [2025, 12, 1, 6, 53],
+      }),
+    ]);
+    refreshedGantt.flight.pushOut = [2025, 12, 1, 6, 53];
+
+    const refreshedResult = createTabletFlightDetailViewModel(
+      baseFlight,
+      refreshedGantt,
+    );
+
+    expect(result.header.pushOutTime).toBeNull();
+    expect(refreshedResult.header.pushOutTime).toBe('2025-12-01T06:53:00');
+    expect(refreshedResult.departure.actionTimeValue).toBe('06:53');
   });
 
   it('shows ETD as ---- when ETD and STD are equal', () => {

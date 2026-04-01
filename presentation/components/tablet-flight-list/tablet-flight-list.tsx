@@ -1,18 +1,20 @@
-import {
-  CheckOutlined,
-  CloseOutlined,
-  SearchOutlined,
-} from '@hangar/react-native-icons/core/interaction';
 import React from 'react';
 import { TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from 'styled-components';
 
 import type { Flight } from '@/domain/entities/flight';
 import { AppPressable } from '@/presentation/components/common/app-pressable';
+import {
+  CheckOutlined,
+  DoubleCaretLeftOutlined,
+  SearchOutlined,
+} from '@/presentation/components/common/icons';
 import { FlightListDateSelector } from '@/presentation/components/flight-list/flight-list-date-selector';
 import { getPanelColors } from '@/presentation/components/flight-list/flight-list-theme';
 import type { OrderKey } from '@/presentation/components/flight-list/flight-list.types';
 import { TabletText as Text } from '@/presentation/components/tablet/tablet-text';
+import { getBottomSystemSpacing } from '@/presentation/utils/native-safe-area';
 
 import { TabletFlightListContent } from './tablet-flight-list-content';
 import { styles } from './tablet-flight-list.styles.runtime';
@@ -62,6 +64,8 @@ export const TabletFlightList: React.FC<TabletFlightListProps> = ({
   onSelectFlight,
 }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomSafeSpacing = getBottomSystemSpacing(insets.bottom);
   const colors = getPanelColors(theme);
 
   return (
@@ -77,6 +81,9 @@ export const TabletFlightList: React.FC<TabletFlightListProps> = ({
           borderBottomColor: colors.borderPrimary,
         }}
       >
+        <Text variant="heading-md" style={styles.headerTitle}>
+          Fila de Voos
+        </Text>
         <AppPressable
           onPress={onClose}
           disabled={!canClose}
@@ -84,13 +91,10 @@ export const TabletFlightList: React.FC<TabletFlightListProps> = ({
             ...styles.closeButton,
             opacity: canClose ? 1 : 0.35,
           }}
-          accessibilityLabel="Cerrar fila de vuelos"
+          accessibilityLabel="Fechar fila de voos"
         >
-          <CloseOutlined size={28} color={colors.textPrimary} />
+          <DoubleCaretLeftOutlined size={28} color={colors.textPrimary} />
         </AppPressable>
-        <Text variant="heading-md" style={styles.headerTitle}>
-          Fila de Voos
-        </Text>
       </View>
 
       <FlightListDateSelector
@@ -185,6 +189,7 @@ export const TabletFlightList: React.FC<TabletFlightListProps> = ({
         <View
           style={{
             ...styles.footer,
+            paddingBottom: (styles.footer.paddingVertical ?? 0) + bottomSafeSpacing,
             borderTopColor: colors.borderPrimary,
           }}
         >

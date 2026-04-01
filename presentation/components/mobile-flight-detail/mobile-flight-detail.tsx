@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   EditSquareOutlined,
@@ -11,17 +12,13 @@ import { MobileText as Text } from '@/presentation/components/mobile/mobile-text
 import { TaskEditModal } from '@/presentation/components/task-edit-modal/task-edit-modal';
 import type { FlightTaskActionTarget } from '@/presentation/controllers/use-flight-task-actions';
 import type { MobileTaskEditModalController } from '@/presentation/controllers/use-mobile-flight-detail-controller';
+import { getBottomSystemSpacing } from '@/presentation/utils/native-safe-area';
 import type {
   MobileFlightDetailViewModel,
   MobileFlightProcessViewModel,
 } from '@/presentation/view-models/mobile-flight-detail-view-model';
 
 import { styles } from './mobile-flight-detail.styles';
-
-const nowHHmm = (): string => {
-  const currentDate = new Date();
-  return `${String(currentDate.getHours()).padStart(2, '0')}:${String(currentDate.getMinutes()).padStart(2, '0')}`;
-};
 
 interface MobileFlightDetailProps {
   viewModel: MobileFlightDetailViewModel | null;
@@ -181,59 +178,14 @@ export const MobileFlightDetail: React.FC<MobileFlightDetailProps> = ({
   error,
   refreshing = false,
   onRefresh,
-  onStartTask,
-  onFinishTask,
-  onCompleteHito,
 }) => {
+  const insets = useSafeAreaInsets();
+  const bottomSafeSpacing = getBottomSystemSpacing(insets.bottom);
   const [activeLeg, setActiveLeg] = useState<'arrival' | 'departure'>(
     'departure',
   );
   const scrollViewRef = useRef<ScrollView>(null);
   const [boardingSectionOffset, setBoardingSectionOffset] = useState(0);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  const handleCompleteHito = useCallback(
-    async (task: MobileFlightProcessViewModel) => {
-      if (taskEditModal.isReadOnly || actionLoading) {
-        return;
-      }
-
-      const time = nowHHmm();
-
-      if (onCompleteHito) {
-        setActionLoading(task.instanceId);
-        try {
-          await onCompleteHito(task, time, task.isStarted);
-        } finally {
-          setActionLoading(null);
-        }
-        return;
-      }
-
-      if (!onStartTask || !onFinishTask) {
-        return;
-      }
-
-      setActionLoading(task.instanceId);
-      try {
-        if (task.isStarted) {
-          await onFinishTask(task, time);
-        } else {
-          await onStartTask(task, time);
-          await onFinishTask({ ...task, startTimeLabel: time }, time);
-        }
-      } finally {
-        setActionLoading(null);
-      }
-    },
-    [
-      actionLoading,
-      onCompleteHito,
-      onStartTask,
-      onFinishTask,
-      taskEditModal.isReadOnly,
-    ],
-  );
 
   useEffect(() => {
     setActiveLeg('departure');
@@ -270,7 +222,13 @@ export const MobileFlightDetail: React.FC<MobileFlightDetailProps> = ({
       <ScrollView
         ref={scrollViewRef}
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingBottom:
+              (styles.scrollContent.paddingBottom ?? 0) + bottomSafeSpacing,
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           onRefresh ? (
@@ -790,25 +748,19 @@ export const MobileFlightDetail: React.FC<MobileFlightDetailProps> = ({
                           style={[
                             styles.processExpandedAction,
                             { backgroundColor: '#6B0FC7' },
-                            (taskEditModal.isReadOnly || actionLoading === task.instanceId)
-                              ? { opacity: 0.45 }
-                              : null,
+                            taskEditModal.isReadOnly ? { opacity: 0.45 } : null,
                           ]}
                           onPress={() => {
-                            void handleCompleteHito(task);
+                            taskEditModal.open(task);
                           }}
-                          disabled={taskEditModal.isReadOnly || actionLoading === task.instanceId}
+                          disabled={taskEditModal.isReadOnly}
                         >
-                          {actionLoading === task.instanceId ? (
-                            <ActivityIndicator size="small" color="#ffffff" />
-                          ) : (
-                            <Text
-                              variant="heading-sm"
-                              style={{ color: '#ffffff' }}
-                            >
-                              Marcar Marco
-                            </Text>
-                          )}
+                          <Text
+                            variant="heading-sm"
+                            style={{ color: '#ffffff' }}
+                          >
+                            Marcar Marco
+                          </Text>
                         </Pressable>
                       )
                     ) : (
@@ -818,7 +770,9 @@ export const MobileFlightDetail: React.FC<MobileFlightDetailProps> = ({
                           getExpandedProcessActionStyle(task),
                           taskEditModal.isReadOnly ? { opacity: 0.45 } : null,
                         ]}
-                        onPress={() => taskEditModal.open(task)}
+                        onPress={() => {
+                          taskEditModal.open(task);
+                        }}
                         disabled={taskEditModal.isReadOnly}
                       >
                         <Text

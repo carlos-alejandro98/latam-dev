@@ -6,6 +6,7 @@ import type {
 } from '@/domain/entities/flight-gantt';
 import {
   resolveAvailableTime,
+  resolveConfirmedPushOutTime,
   resolveMtd,
   resolveTaskImpactSummary,
   type FlightMtdTone,
@@ -83,6 +84,13 @@ export interface TabletFlightDetailViewModel {
     availableTimeDelayed: boolean;
     mtdLabel: string;
     mtdTone: FlightMtdTone;
+    availableEndDate: string | null;
+    availableEndTime: string | null;
+    stdDate: string | null;
+    stdTime: string | null;
+    /** Confirmed push-back timestamp used to freeze the countdown. */
+    pushOutTime: string | null;
+    allTasksCompleted: boolean;
   };
   arrival: TabletFlightLegViewModel;
   departure: TabletFlightLegViewModel;
@@ -138,6 +146,18 @@ const formatTimeValue = (value?: string | GanttDateTime): string => {
   }
 
   return value;
+};
+
+const ganttDateTimeToIsoString = (
+  value?: GanttDateTime,
+): string | null => {
+  if (!value || value.length < 5) {
+    return null;
+  }
+
+  const [year, month, day, hours, minutes] = value;
+
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
 };
 
 const formatEtdDisplayValue = (
@@ -426,6 +446,7 @@ export const createTabletFlightDetailViewModel = (
 ): TabletFlightDetailViewModel => {
   const ganttFlight = gantt?.flight;
   const summary = gantt?.summary;
+  const ganttTasks = gantt?.tasks ?? [];
   const arrivalBox =
     ganttFlight?.parkPositionArrival ??
     flight.parkPositionArrival ??
@@ -441,6 +462,13 @@ export const createTabletFlightDetailViewModel = (
     ganttFlight?.estimatedPushIn ??
     flight.estimatedPushIn ??
     flight.pushIn;
+  const pushOutValue = ganttFlight?.pushOut ?? flight.pushOut;
+  const pushOutIsoValue =
+    ganttDateTimeToIsoString(ganttFlight?.pushOut) ?? flight.pushOut ?? null;
+  const confirmedPushOutIsoValue = resolveConfirmedPushOutTime({
+    pushOut: pushOutIsoValue,
+    tasks: ganttTasks,
+  });
   const availableEndDate = flight.etdDate || flight.stdDate;
   const availableEndTime = flight.etdTime || flight.stdTime;
   const availableMinutes =
@@ -453,7 +481,7 @@ export const createTabletFlightDetailViewModel = (
       availableEndDate,
       availableEndTime,
     );
-  const taskImpact = resolveTaskImpactSummary(gantt?.tasks ?? [], nowTimestamp);
+  const taskImpact = resolveTaskImpactSummary(ganttTasks, nowTimestamp);
   const availableTime = resolveAvailableTime({
     endDate: availableEndDate,
     endTime: availableEndTime,
@@ -467,7 +495,7 @@ export const createTabletFlightDetailViewModel = (
   });
   const mtd = resolveMtd(taskImpact.netImpactMinutes);
 
-  const tasks = [...(gantt?.tasks ?? [])]
+  const tasks = [...ganttTasks]
     .sort((leftTask, rightTask) => {
       return (
         getComparableTaskTimestamp(leftTask) -
@@ -488,6 +516,18 @@ export const createTabletFlightDetailViewModel = (
       availableTimeDelayed: availableTime.isDelayed,
       mtdLabel: mtd.label,
       mtdTone: mtd.tone,
+      availableEndDate: availableEndDate ?? null,
+      availableEndTime: availableEndTime ?? null,
+      stdDate: flight.stdDate ?? null,
+      stdTime: flight.stdTime ?? null,
+      pushOutTime: confirmedPushOutIsoValue,
+      allTasksCompleted:
+        ganttTasks.length > 0 &&
+        ganttTasks.every(
+          (task) =>
+            Boolean(task.finReal) ||
+            task.estado.toUpperCase().trim() === 'COMPLETED',
+        ),
     },
     arrival: {
       title: 'ARRIVAL',
@@ -527,7 +567,7 @@ export const createTabletFlightDetailViewModel = (
       ],
       boxValue: departureBox,
       actionTimeLabel: 'PUSH BACK',
-      actionTimeValue: formatTimeValue(flight.pushOut),
+      actionTimeValue: formatTimeValue(pushOutValue),
     },
     cargo: {
       holdBags: formatCount(flight.bagsCnxArrival),

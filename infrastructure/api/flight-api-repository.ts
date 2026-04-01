@@ -152,6 +152,7 @@ function mapTurnaroundToFlightGantt(raw: TurnaroundApiResponse): FlightGantt {
       origin: raw.origin,
       destination: raw.destination,
       ata: raw.flightIndicators.ata,
+      pushOut: raw.flightIndicators.pushOut,
       pushIn: null,
       estimatedPushIn: raw.estimatedPushIn,
       parkPositionArrival: raw.parkPositionArrival,
@@ -185,7 +186,10 @@ export class FlightApiRepository implements FlightRepositoryPort {
    * Si no se proporcionan fechas, usa un rango por defecto de 3 días antes y después de hoy.
    * Formato requerido por el endpoint: ddMMyyyy (ej: 25032026 para 25/03/2026)
    */
-  async getActiveFlights(dateRange?: DateRangeParams, signal?: AbortSignal) {
+  async getActiveFlights(
+    dateRange?: DateRangeParams,
+    signal?: AbortSignal,
+  ): Promise<Flight[]> {
     // Usar fechas del parametro o calcular rango por defecto
     const defaultRange = getDefaultDateRange();
     const stdDateFrom = dateRange?.stdDateFrom ?? defaultRange.stdDateFrom;

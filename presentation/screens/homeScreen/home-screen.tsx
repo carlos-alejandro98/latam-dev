@@ -196,6 +196,48 @@ export const HomeScreen = () => {
     [],
   );
 
+  const resolveUpdatedTimeChange = useCallback(
+    (
+      previousStartTime?: string | null,
+      previousEndTime?: string | null,
+      plannedStartTime?: string | null,
+      plannedEndTime?: string | null,
+      nextStartTime?: string | null,
+      nextEndTime?: string | null,
+    ): { previousTime: string | null; nextTime: string | null } => {
+      const normalize = (value?: string | null): string | null => {
+        const trimmed = value?.trim();
+
+        if (!trimmed || trimmed === '--:--' || trimmed === '----') {
+          return null;
+        }
+
+        return trimmed;
+      };
+
+      const previousStart = normalize(previousStartTime);
+      const previousEnd = normalize(previousEndTime);
+      const plannedStart = normalize(plannedStartTime);
+      const plannedEnd = normalize(plannedEndTime);
+      const nextStart = normalize(nextStartTime);
+      const nextEnd = normalize(nextEndTime);
+
+      if (nextEnd && nextEnd !== previousEnd) {
+        return { previousTime: previousEnd ?? plannedEnd, nextTime: nextEnd };
+      }
+
+      if (nextStart && nextStart !== previousStart) {
+        return { previousTime: previousStart ?? plannedStart, nextTime: nextStart };
+      }
+
+      return {
+        previousTime: previousEnd ?? previousStart ?? plannedEnd ?? plannedStart,
+        nextTime: nextEnd ?? nextStart,
+      };
+    },
+    [],
+  );
+
   const handleStartTask = useCallback(
     async (taskInstanceId: string, time: string): Promise<void> => {
       if (!canManageTaskActions) {
@@ -362,12 +404,22 @@ export const HomeScreen = () => {
           selectedProcess?.plannedEndTime,
         );
         const worstDelay = Math.max(delayStart, delayEnd);
+        const updatedTimes = resolveUpdatedTimeChange(
+          selectedProcess?.startTime,
+          selectedProcess?.endTime,
+          selectedProcess?.plannedStartTime,
+          selectedProcess?.plannedEndTime,
+          newStartTime,
+          newEndTime,
+        );
         dispatch(
           addSessionEvent({
             type: 'updated',
             taskInstanceId,
             taskName: selectedProcess?.name ?? taskInstanceId,
-            time: newStartTime || newEndTime,
+            time: updatedTimes.nextTime ?? newStartTime ?? newEndTime ?? '',
+            previousTime: updatedTimes.previousTime,
+            nextTime: updatedTimes.nextTime,
             timestamp: Date.now(),
             flightId: selectedFlight?.flightId ?? '',
             isDelayed: worstDelay > 0,
@@ -393,6 +445,7 @@ export const HomeScreen = () => {
       patchTask,
       dispatch,
       calcDelayMinutes,
+      resolveUpdatedTimeChange,
     ],
   );
 

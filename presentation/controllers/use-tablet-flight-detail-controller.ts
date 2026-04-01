@@ -1,20 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 
 import type { Flight } from '@/domain/entities/flight';
+import { useGanttPolling } from '@/presentation/hooks/use-gantt-polling';
+import { useMinuteTimestamp } from '@/presentation/hooks/use-minute-timestamp';
 import {
   createTabletFlightDetailViewModel,
   type TabletTaskCategory,
   type TabletFlightTaskViewModel,
 } from '@/presentation/view-models/tablet-flight-detail-view-model';
-import { useMinuteTimestamp } from '@/presentation/hooks/use-minute-timestamp';
-import { useGanttPolling } from '@/presentation/hooks/use-gantt-polling';
 
 import { useFlightGanttController } from './use-flight-gantt-controller';
 import {
   useFlightTaskActions,
   type FlightTaskActionResult,
 } from './use-flight-task-actions';
-import { useTaskEditModalController } from './use-task-edit-modal-controller';
+import {
+  useTaskEditModalController,
+  type TaskEditModalController,
+} from './use-task-edit-modal-controller';
 
 const TABLET_TASK_FILTERS: Array<{
   id: TabletTaskCategory;
@@ -51,7 +61,29 @@ const applyOptimisticTask = (
   };
 };
 
-export const useTabletFlightDetailController = (flight: Flight | null) => {
+export const useTabletFlightDetailController = (
+  flight: Flight | null,
+): {
+  viewModel: ReturnType<typeof createTabletFlightDetailViewModel> | null;
+  filteredTasks: TabletFlightTaskViewModel[];
+  filterOptions: Array<{ id: TabletTaskCategory; label: string }>;
+  searchDraft: string;
+  setSearchDraft: Dispatch<SetStateAction<string>>;
+  activeCategory: TabletTaskCategory;
+  setActiveCategory: Dispatch<SetStateAction<TabletTaskCategory>>;
+  applySearch: () => void;
+  reload: () => Promise<void>;
+  refreshGantt: () => void;
+  patchTask: ReturnType<typeof useFlightGanttController>['patchTask'];
+  taskEditModal: TaskEditModalController<TabletFlightTaskViewModel>;
+  taskActions: ReturnType<typeof useFlightTaskActions>;
+  loadFlightGantt: ReturnType<typeof useFlightGanttController>['loadFlightGantt'];
+  reloading: boolean;
+  flightId: string | null;
+  std: string | null;
+  loading: boolean;
+  error: string | undefined;
+} => {
   const nowTimestamp = useMinuteTimestamp();
   const {
     gantt,
@@ -62,11 +94,6 @@ export const useTabletFlightDetailController = (flight: Flight | null) => {
     refreshTurnaroundMetrics,
     patchTask,
   } = useFlightGanttController(flight?.flightId);
-  const taskActions = useFlightTaskActions({
-    flight,
-    patchTask,
-    loadFlightGantt,
-  });
   const [searchDraft, setSearchDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isReloading, setIsReloading] = useState(false);
@@ -83,6 +110,105 @@ export const useTabletFlightDetailController = (flight: Flight | null) => {
     flight && gantt?.flight?.flightId === flight.flightId ? gantt : null;
   const shouldUseRequestState =
     Boolean(flight) && requestedFlightId === flight?.flightId;
+  const {
+    startTask: startTaskMutation,
+    finishTask: finishTaskMutation,
+    updateTask: updateTaskMutation,
+    completeHitoTask: completeHitoTaskMutation,
+    optimisticTasks,
+  } = useFlightTaskActions({
+    flight,
+    patchTask,
+    loadFlightGantt,
+  });
+
+  const refreshAfterTaskMutation = useCallback(async () => {
+    if (!flight?.flightId) {
+      return;
+    }
+
+    try {
+      if (resolvedGantt?.turnaroundId) {
+        await refreshTurnaroundMetrics(resolvedGantt.turnaroundId);
+      }
+
+      await loadFlightGantt(flight.flightId);
+    } catch {
+      // Keep the optimistic state visible; polling and delayed sync will recover.
+    }
+  }, [
+    flight?.flightId,
+    loadFlightGantt,
+    refreshTurnaroundMetrics,
+    resolvedGantt?.turnaroundId,
+  ]);
+
+  const startTask = useCallback(
+    async (
+      task: Parameters<typeof startTaskMutation>[0],
+      time: Parameters<typeof startTaskMutation>[1],
+    ) => {
+      const result = await startTaskMutation(task, time);
+      await refreshAfterTaskMutation();
+      return result;
+    },
+    [refreshAfterTaskMutation, startTaskMutation],
+  );
+
+  const finishTask = useCallback(
+    async (
+      task: Parameters<typeof finishTaskMutation>[0],
+      time: Parameters<typeof finishTaskMutation>[1],
+    ) => {
+      const result = await finishTaskMutation(task, time);
+      await refreshAfterTaskMutation();
+      return result;
+    },
+    [finishTaskMutation, refreshAfterTaskMutation],
+  );
+
+  const updateTask = useCallback(
+    async (
+      task: Parameters<typeof updateTaskMutation>[0],
+      startTime: Parameters<typeof updateTaskMutation>[1],
+      endTime: Parameters<typeof updateTaskMutation>[2],
+    ) => {
+      const result = await updateTaskMutation(task, startTime, endTime);
+      await refreshAfterTaskMutation();
+      return result;
+    },
+    [refreshAfterTaskMutation, updateTaskMutation],
+  );
+
+  const completeHitoTask = useCallback(
+    async (
+      task: Parameters<typeof completeHitoTaskMutation>[0],
+      time: Parameters<typeof completeHitoTaskMutation>[1],
+      onlyFinish: Parameters<typeof completeHitoTaskMutation>[2],
+    ) => {
+      const result = await completeHitoTaskMutation(task, time, onlyFinish);
+      await refreshAfterTaskMutation();
+      return result;
+    },
+    [completeHitoTaskMutation, refreshAfterTaskMutation],
+  );
+
+  const taskActions = useMemo(
+    () => ({
+      startTask,
+      finishTask,
+      updateTask,
+      completeHitoTask,
+      optimisticTasks,
+    }),
+    [
+      completeHitoTask,
+      finishTask,
+      optimisticTasks,
+      startTask,
+      updateTask,
+    ],
+  );
 
   const viewModel = useMemo(() => {
     if (!flight) {
@@ -98,10 +224,10 @@ export const useTabletFlightDetailController = (flight: Flight | null) => {
     return {
       ...baseViewModel,
       tasks: baseViewModel.tasks.map((task) =>
-        applyOptimisticTask(task, taskActions.optimisticTasks[task.instanceId]),
+        applyOptimisticTask(task, optimisticTasks[task.instanceId]),
       ),
     };
-  }, [flight, nowTimestamp, resolvedGantt, taskActions.optimisticTasks]);
+  }, [flight, nowTimestamp, optimisticTasks, resolvedGantt]);
 
   const filteredTasks = useMemo(() => {
     if (!viewModel) {
@@ -152,9 +278,9 @@ export const useTabletFlightDetailController = (flight: Flight | null) => {
   const { refresh: refreshGantt } = useGanttPolling(flight?.flightId ?? null, loadFlightGantt);
   const taskEditModal = useTaskEditModalController<TabletFlightTaskViewModel>({
     flightId: flight?.flightId,
-    onStartTask: taskActions.startTask,
-    onFinishTask: taskActions.finishTask,
-    onUpdateTask: taskActions.updateTask,
+    onStartTask: startTask,
+    onFinishTask: finishTask,
+    onUpdateTask: updateTask,
   });
 
   return {

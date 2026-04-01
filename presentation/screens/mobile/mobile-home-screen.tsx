@@ -24,6 +24,7 @@ import { useFlightListController } from '@/presentation/controllers/use-flight-l
 import { useHomeController } from '@/presentation/controllers/use-home-controller';
 import { useMobileFlightDetailController } from '@/presentation/controllers/use-mobile-flight-detail-controller';
 import { useFlightRealtimeUpdates } from '@/presentation/hooks/use-flight-realtime-updates';
+import { FlightGanttEmptyState } from '@/presentation/screens/homeScreen/components/flight-gantt-empty-state';
 
 import { styles } from './mobile-home-screen.styles';
 
@@ -48,7 +49,7 @@ export const MobileHomeScreen = () => {
   } = useHomeController();
   const flightListController = useFlightListController({ flights });
   const mobileFlightDetail = useMobileFlightDetailController(selectedFlight);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(!selectedFlightId);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const translateX = useRef(new Animated.Value(0)).current;
   /** First frame: snap position only; keep drawer mounted so the flight list is not remounted. */
@@ -58,11 +59,6 @@ export const MobileHomeScreen = () => {
 
   // Solo reaccionar a cambios de `selectedFlightId`; el objeto vuelo cambia de referencia con parches Redux.
   useEffect(() => {
-    if (!selectedFlightId) {
-      setIsDrawerOpen(true);
-      return;
-    }
-
     setIsDrawerOpen(false);
   }, [selectedFlightId]);
 
@@ -97,10 +93,6 @@ export const MobileHomeScreen = () => {
   };
 
   const handleCloseDrawer = () => {
-    if (!selectedFlight) {
-      return;
-    }
-
     setIsDrawerOpen(false);
   };
 
@@ -153,7 +145,7 @@ export const MobileHomeScreen = () => {
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gestureState) => {
-          if (!isDrawerOpen || !selectedFlight) {
+          if (!isDrawerOpen) {
             return false;
           }
 
@@ -165,7 +157,7 @@ export const MobileHomeScreen = () => {
           }
         },
       }),
-    [isDrawerOpen, selectedFlight],
+    [isDrawerOpen],
   );
 
   return (
@@ -183,17 +175,21 @@ export const MobileHomeScreen = () => {
       />
       <View style={styles.content}>
         <View style={styles.detailColumn}>
-          <MobileFlightDetail
-            viewModel={mobileFlightDetail.viewModel}
-            taskEditModal={mobileFlightDetail.taskEditModal}
-            loading={mobileFlightDetail.loading}
-            error={mobileFlightDetail.error}
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            onStartTask={mobileFlightDetail.taskActions.startTask}
-            onFinishTask={mobileFlightDetail.taskActions.finishTask}
-            onCompleteHito={mobileFlightDetail.taskActions.completeHitoTask}
-          />
+          {selectedFlight ? (
+            <MobileFlightDetail
+              viewModel={mobileFlightDetail.viewModel}
+              taskEditModal={mobileFlightDetail.taskEditModal}
+              loading={mobileFlightDetail.loading}
+              error={mobileFlightDetail.error}
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              onStartTask={mobileFlightDetail.taskActions.startTask}
+              onFinishTask={mobileFlightDetail.taskActions.finishTask}
+              onCompleteHito={mobileFlightDetail.taskActions.completeHitoTask}
+            />
+          ) : (
+            <FlightGanttEmptyState />
+          )}
         </View>
       </View>
 
@@ -235,7 +231,7 @@ export const MobileHomeScreen = () => {
             selectedFlightId={selectedFlightId}
             selectedFlightIds={selectedFlightIds}
             onClose={handleCloseDrawer}
-            canClose={Boolean(selectedFlight)}
+            canClose
             onSearchChange={flightListController.setSearchQuery}
             onOrderChange={flightListController.setOrderBy}
             onDateChange={flightListController.setSelectedDateKey}

@@ -156,6 +156,142 @@ const resolveTimestamp = (
     : resolvedDateTime.getTime();
 };
 
+export const resolveSecondsToAvailableEnd = ({
+  end,
+  endDate,
+  endTime,
+  nowTimestamp = Date.now(),
+}: Pick<
+  ResolveAvailableTimeInput,
+  'end' | 'endDate' | 'endTime' | 'nowTimestamp'
+>): number | null => {
+  const endTimestamp = resolveTimestamp(end, endDate, endTime);
+  if (endTimestamp === null) {
+    return null;
+  }
+
+  return Math.round((endTimestamp - nowTimestamp) / 1000);
+};
+
+export const resolveFrozenPushOutDelaySeconds = ({
+  end,
+  endDate,
+  endTime,
+  pushOut,
+}: Pick<ResolveAvailableTimeInput, 'end' | 'endDate' | 'endTime'> & {
+  pushOut?: string | null;
+}): number | null => {
+  const endTimestamp = resolveTimestamp(end, endDate, endTime);
+  const pushOutTimestamp = resolveTimestamp(pushOut);
+
+  if (endTimestamp === null || pushOutTimestamp === null) {
+    return null;
+  }
+
+  return Math.min(0, Math.round((endTimestamp - pushOutTimestamp) / 1000));
+};
+
+const ganttDateTimeToIsoString = (value?: GanttDateTime | null): string | null => {
+  if (!value || value.length < 5) {
+    return null;
+  }
+
+  const [year, month, day, hours, minutes] = value;
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
+};
+
+const normalizeTaskText = (value?: string | null): string => {
+  if (!value) {
+    return '';
+  }
+
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+};
+
+const isPushBackTask = (task: FlightGanttTask): boolean => {
+  const normalizedTaskName = normalizeTaskText(task.taskName);
+
+  return (
+    normalizedTaskName.includes('push back') ||
+    normalizedTaskName.includes('pushback') ||
+    normalizedTaskName.includes('push out') ||
+    normalizedTaskName.includes('pushout')
+  );
+};
+
+const isCompletedTask = (task: FlightGanttTask): boolean => {
+  const status = task.estado.toUpperCase().trim();
+
+  return (
+    Boolean(task.finReal) ||
+    (task.tipoEvento?.toUpperCase().trim() === 'HITO' && Boolean(task.inicioReal)) ||
+    status === 'COMPLETED' ||
+    status === 'COMPLETADA' ||
+    status === 'COMPLETADO' ||
+    status === 'FINALIZADO' ||
+    status === 'FINALIZADA'
+  );
+};
+
+const getTaskActualMomentIsoString = (task: FlightGanttTask): string | null => {
+  return ganttDateTimeToIsoString(task.finReal ?? task.inicioReal);
+};
+
+export const resolveConfirmedPushOutTime = ({
+  pushOut,
+  tasks,
+}: {
+  pushOut?: string | null;
+  tasks?: FlightGanttTask[] | null;
+}): string | null => {
+  const taskList = tasks ?? [];
+  const pushOutTimestamp = resolveTimestamp(pushOut);
+
+  const confirmedPushBackTask = taskList.find((task) => {
+    if (!isCompletedTask(task) || !isPushBackTask(task)) {
+      return false;
+    }
+
+    const actualMoment = getTaskActualMomentIsoString(task);
+    if (!actualMoment) {
+      return false;
+    }
+
+    if (pushOutTimestamp === null) {
+      return true;
+    }
+
+    return resolveTimestamp(actualMoment) === pushOutTimestamp;
+  });
+
+  if (confirmedPushBackTask) {
+    return getTaskActualMomentIsoString(confirmedPushBackTask);
+  }
+
+  if (pushOutTimestamp === null) {
+    return null;
+  }
+
+  const completedHitoWithMatchingTime = taskList.find((task) => {
+    if (
+      task.tipoEvento?.toUpperCase().trim() !== 'HITO' ||
+      !isCompletedTask(task)
+    ) {
+      return false;
+    }
+
+    const actualMoment = getTaskActualMomentIsoString(task);
+    return actualMoment !== null && resolveTimestamp(actualMoment) === pushOutTimestamp;
+  });
+
+  return completedHitoWithMatchingTime ? pushOut ?? null : null;
+};
+
 const ganttDateTimeToTimestamp = (value?: GanttDateTime): number | null => {
   if (!value || value.length < 5) {
     return null;

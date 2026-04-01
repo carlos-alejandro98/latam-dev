@@ -8,6 +8,7 @@ export interface FlightGanttInfo {
   origin: string;
   destination: string;
   ata: GanttDateTime;
+  pushOut?: GanttDateTime;
   pushIn: string | null;
   estimatedPushIn: GanttDateTime;
   parkPositionArrival: string | null;

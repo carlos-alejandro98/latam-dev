@@ -1,6 +1,5 @@
 import { describe, it, expect, jest } from "@jest/globals";
 
-import { FlightError } from "@/domain/errors/flight-error";
 import { flightsHttpGet, flightsHttpPost } from "@/infrastructure/http/flights-http-methods";
 
 import { FlightApiRepository } from "./flight-api-repository";
@@ -80,7 +79,7 @@ describe("FlightApiRepository", () => {
     const repository = new FlightApiRepository();
     mockedFlightsHttpGet.mockResolvedValue(turnaroundApiResponseMock as never);
 
-    await repository.getFlightGantt("JPALA363718/01/2026");
+    const result = await repository.getFlightGantt("JPALA363718/01/2026");
 
     expect(flightsHttpGet).toHaveBeenCalledWith(
       "/api/v1/turnarounds/flight/gantt",
@@ -89,6 +88,7 @@ describe("FlightApiRepository", () => {
       },
       undefined,
     );
+    expect(result.flight.pushOut).toEqual([2026, 1, 18, 6, 42]);
   });
 
   it("should map 404 errors to FlightError GANTT_NOT_FOUND", async () => {
@@ -112,7 +112,7 @@ describe("FlightApiRepository", () => {
     const repository = new FlightApiRepository();
     mockedFlightsHttpPost.mockResolvedValue({
       success: true,
-      turnaround_id: "turnaround-123",
+      turnaroundId: "turnaround-123",
       message: "ok",
     } as never);
 

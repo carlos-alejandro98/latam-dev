@@ -17,7 +17,7 @@ interface EnvironmentConfig {
   /** Opcional: tenant distinto solo para OAuth nativo (por defecto el mismo que web). */
   authTenantIdMobile: string | undefined;
   enableLogs: boolean;
-  /** Intervalo de polling para la gantt en milisegundos. 0 = desactivado (solo refresh manual). */
+  /** Intervalo de polling para la gantt en milisegundos. 0 = desactivado explícitamente. */
   ganttPollingIntervalMs: number;
 }
 
@@ -41,8 +41,7 @@ export const ENV: EnvironmentConfig = {
   apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL as string,
   flightsApiBaseUrl: (process.env.EXPO_PUBLIC_FLIGHTS_API_BASE_URL ??
     process.env.EXPO_PUBLIC_API_BASE_URL) as string,
-  flightsWsUrl:
-    (process.env.EXPO_PUBLIC_FLIGHTS_WS_URL as string | undefined) ?? '',
+  flightsWsUrl: process.env.EXPO_PUBLIC_FLIGHTS_WS_URL ?? '',
   environment: process.env.EXPO_PUBLIC_ENV as EnvironmentConfig['environment'],
   authEnvironment: resolveAuthEnvironment(),
   authRedirectScheme: process.env.EXPO_PUBLIC_AUTH_REDIRECT_SCHEME ?? 'compass',
@@ -53,7 +52,7 @@ export const ENV: EnvironmentConfig = {
     process.env.EXPO_PUBLIC_AUTH_TENANT_ID_MOBILE?.trim() || undefined,
   enableLogs: process.env.EXPO_PUBLIC_ENABLE_LOGS === 'true',
   ganttPollingIntervalMs: parseInt(
-    process.env.EXPO_PUBLIC_GANTT_POLLING_INTERVAL_MS ?? '0',
+    process.env.EXPO_PUBLIC_GANTT_POLLING_INTERVAL_MS ?? '5000',
     10,
   ),
 };

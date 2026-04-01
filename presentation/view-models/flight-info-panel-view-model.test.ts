@@ -234,6 +234,44 @@ describe('createFlightInfoPanelViewModel', () => {
     });
   });
 
+  it('keeps the countdown live when only the raw push-out exists without the marked push-back hito', () => {
+    const viewModel = createFlightInfoPanelViewModel(
+      {
+        ...baseFlight,
+        pushOut: '2025-12-01T10:35:00',
+      },
+      null,
+    );
+
+    expect(viewModel.summary.pushOutTime).toBeNull();
+    expect(viewModel.departure.actionTime.value).toBe('10:35');
+  });
+
+  it('freezes the countdown only after the push-back hito is completed', () => {
+    const gantt = buildGantt([
+      buildTask({
+        taskId: 'push-back',
+        instanceId: 'push-back-instance',
+        taskName: 'Push Back',
+        tipoEvento: 'HITO',
+        estado: 'COMPLETED',
+        inicioReal: [2025, 12, 1, 10, 35],
+        finReal: null,
+        duracionReal: null,
+        inicioProgramado: [2025, 12, 1, 10, 35],
+        finProgramado: [2025, 12, 1, 10, 35],
+        inicioCalculado: [2025, 12, 1, 10, 35],
+        finCalculado: [2025, 12, 1, 10, 35],
+      }),
+    ]);
+    gantt.flight.pushOut = [2025, 12, 1, 10, 35];
+
+    const viewModel = createFlightInfoPanelViewModel(baseFlight, gantt);
+
+    expect(viewModel.summary.pushOutTime).toBe('2025-12-01T10:35:00');
+    expect(viewModel.timeline.pushOutTime).toBe('2025-12-01T10:35:00');
+  });
+
   it('uses programmed task times as the default source for event labels and ordering', () => {
     const viewModel = createFlightInfoPanelViewModel(
       baseFlight,

@@ -8,6 +8,8 @@ export interface SessionEvent {
   taskInstanceId?: string;
   taskName:      string;
   time:          string;       // HH:mm from the input
+  previousTime?: string | null;
+  nextTime?: string | null;
   timestamp:     number;       // Date.now() at moment of action (PC clock)
   flightId:      string;
   isDelayed:     boolean;
