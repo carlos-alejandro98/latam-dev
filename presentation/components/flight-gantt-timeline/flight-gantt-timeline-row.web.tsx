@@ -800,7 +800,8 @@ export const FlightGanttTimelineRow = memo(
             style={{
               position: 'absolute',
               top: 0,
-              left: -timelineOffset,
+              left: 0,
+              transform: `translateX(-${timelineOffset}px)`,
               pointerEvents: 'none',
               overflow: 'visible',
             }}
