@@ -40,8 +40,16 @@ export const useFlightGanttStoreAdapter = () => {
       instanceId: string;
       startTime?: string | null;
       endTime?: string | null;
-    }) => dispatch(optimisticUpdateTask(payload)),
-    [dispatch],
+    }) => {
+      // Resolve referenceDateTime from the current gantt so hhmmToGanttDateTime
+      // places the bar on the correct calendar date for cross-midnight flights.
+      const task = (gantt?.tasks ?? []).find(t => t.instanceId === payload.instanceId);
+      return dispatch(optimisticUpdateTask({
+        ...payload,
+        referenceDateTime: task?.inicioProgramado ?? task?.inicioCalculado ?? undefined,
+      }));
+    },
+    [dispatch, gantt],
   );
 
   return {

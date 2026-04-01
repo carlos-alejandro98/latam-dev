@@ -37,21 +37,54 @@ interface OptimisticTaskPayload {
   /** "HH:mm" — undefined means don't touch this field */
   startTime?: string | null;
   endTime?: string | null;
+  /**
+   * Reference GanttDateTime from the task's scheduled start/end.
+   * Used to derive the correct calendar date so the bar lands in the right
+   * position when the flight crosses midnight.
+   */
+  referenceDateTime?: FlightGantt['tasks'][0]['inicioProgramado'];
 }
 
-/** Converts "HH:mm" into a GanttDateTime tuple [year,month,day,hour,minute] using today's date. */
+/**
+ * Converts "HH:mm" into a GanttDateTime tuple [year,month,day,hour,minute].
+ * Uses `referenceDateTime` (the task's scheduledStart) to get the correct
+ * calendar date. Falls back to today only when no reference is available.
+ * Handles cross-midnight flights: if the hhmm hour is far from the reference
+ * hour (e.g. reference is 23:xx and hhmm is 01:xx) the date is advanced by 1.
+ */
 const hhmmToGanttDateTime = (
   hhmm: string,
+  referenceDateTime?: FlightGantt['tasks'][0]['inicioProgramado'],
 ): FlightGantt['tasks'][0]['inicioReal'] => {
-  const [h, m] = hhmm.split(':').map(Number);
-  const now = new Date();
-  return [
-    now.getFullYear(),
-    now.getMonth() + 1,
-    now.getDate(),
-    h,
-    m,
-  ] as unknown as FlightGantt['tasks'][0]['inicioReal'];
+  const parts = hhmm.split(':').map(Number);
+  const h = parts[0] ?? 0;
+  const m = parts[1] ?? 0;
+
+  let year: number;
+  let month: number;
+  let day: number;
+
+  if (referenceDateTime && referenceDateTime.length >= 3) {
+    year  = referenceDateTime[0];
+    month = referenceDateTime[1];
+    day   = referenceDateTime[2];
+    // If reference hour is late (>=20) and entered hour is early (<=4),
+    // the operator is recording a time that crosses midnight — advance the date.
+    const refHour = referenceDateTime[3] ?? 0;
+    if (refHour >= 20 && h <= 4) {
+      const d = new Date(year, month - 1, day + 1);
+      year  = d.getFullYear();
+      month = d.getMonth() + 1;
+      day   = d.getDate();
+    }
+  } else {
+    const now = new Date();
+    year  = now.getFullYear();
+    month = now.getMonth() + 1;
+    day   = now.getDate();
+  }
+
+  return [year, month, day, h, m] as unknown as FlightGantt['tasks'][0]['inicioReal'];
 };
 
 const diffMinutes = (
@@ -109,14 +142,17 @@ const flightGanttSlice = createSlice({
       action: import('@reduxjs/toolkit').PayloadAction<OptimisticTaskPayload>,
     ) => {
       if (!state.data) return;
-      const { instanceId, startTime, endTime } = action.payload;
+      const { instanceId, startTime, endTime, referenceDateTime } = action.payload;
       const task = state.data.tasks.find((t) => t.instanceId === instanceId);
       if (!task) return;
+      // Use the task's own scheduled start as the date reference so cross-midnight
+      // flights position their bars on the correct calendar day.
+      const ref = referenceDateTime ?? task.inicioProgramado ?? task.inicioCalculado ?? undefined;
       if ('startTime' in action.payload) {
-        task.inicioReal = startTime ? hhmmToGanttDateTime(startTime) : null;
+        task.inicioReal = startTime ? hhmmToGanttDateTime(startTime, ref) : null;
       }
       if ('endTime' in action.payload) {
-        task.finReal = endTime ? hhmmToGanttDateTime(endTime) : null;
+        task.finReal = endTime ? hhmmToGanttDateTime(endTime, ref) : null;
       }
 
       if (task.finReal) {
