@@ -214,38 +214,20 @@ const renderRangeBar = (
   const showLabel = width >= MIN_WIDTH_FOR_LABEL && durationMin > 0;
   const animId = `bar-anim-${key}-${animationKey ?? 0}`;
 
-  // In-progress bars grow 1px per second via CSS animation so the user
-  // sees gradual progression instead of an instant full-width bar.
-  // The "pixels per second" value is derived from the xScale resolution:
-  // each minute = (xScale(1) - xScale(0)) pixels, so 1 second = that / 60.
-  const pixelsPerSecond = (xScale(1) - xScale(0)) / 60;
-  const animationStyle: React.CSSProperties = isInProgress
-    ? {
-        animationName: 'gantt-bar-grow',
-        animationDuration: `${Math.max(1, Math.round(width / Math.max(0.001, pixelsPerSecond)))}s`,
-        animationTimingFunction: 'linear',
-        animationFillMode: 'forwards',
-        animationIterationCount: '1',
-        transformOrigin: `${x}px ${y}px`,
-      }
-    : {};
+  // In-progress bars: width already reflects the real elapsed time because
+  // `realRange.endMinute` is derived from `nowTimestamp` (updated every second
+  // via `useSecondTimestamp`). No CSS grow animation is needed — the bar grows
+  // naturally as the parent re-renders each second with a larger width.
+  // Completed/planned bars keep the entry animation for a polished appearance.
 
   return (
     <g key={key}>
       <defs>
-        {isInProgress && (
-          <style>{`
-            @keyframes gantt-bar-grow {
-              from { clip-path: inset(0 100% 0 0); }
-              to   { clip-path: inset(0 0% 0 0); }
-            }
-          `}</style>
-        )}
         <clipPath id={`clip-${animId}`}>
           <rect x={x} y={y} width={width} height={height} rx={3} ry={3} />
         </clipPath>
       </defs>
-      {/* Bar rect — grows slowly when in-progress, instant when static */}
+      {/* Bar rect */}
       <rect
         x={x}
         y={y}
@@ -255,8 +237,8 @@ const renderRangeBar = (
         rx={3}
         ry={3}
         clipPath={`url(#clip-${animId})`}
-        style={isInProgress ? animationStyle : undefined}
       >
+        {/* Entry animation only for static (completed/planned) bars */}
         {!isInProgress && (
           <animate
             attributeName="width"
