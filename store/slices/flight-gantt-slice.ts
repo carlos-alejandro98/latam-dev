@@ -56,19 +56,14 @@ interface ApiTaskUpdatePayload {
 const isoToGanttDateTime = (iso: string | null | undefined): FlightGantt['tasks'][0]['inicioReal'] | null => {
   if (!iso) return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(iso);
-  if (!match) {
-    console.log('[v0] isoToGanttDateTime: regex failed for:', iso);
-    return null;
-  }
-  const result = [
+  if (!match) return null;
+  return [
     parseInt(match[1], 10),
     parseInt(match[2], 10),
     parseInt(match[3], 10),
     parseInt(match[4], 10),
     parseInt(match[5], 10),
   ] as unknown as FlightGantt['tasks'][0]['inicioReal'];
-  console.log('[v0] isoToGanttDateTime:', { iso, result });
-  return result;
 };
 
 const hhmmToGanttDateTime = (
@@ -172,21 +167,14 @@ const flightGanttSlice = createSlice({
       if (!state.data) return;
       const { instanceId, actualStart, actualEnd, estado, duracionReal } = action.payload;
       const task = state.data.tasks.find((t) => t.instanceId === instanceId);
-      if (!task) {
-        console.log('[v0] updateTaskFromApi: task not found:', instanceId);
-        return;
-      }
-
-      console.log('[v0] updateTaskFromApi: updating task', { instanceId, actualStart, actualEnd, estado });
+      if (!task) return;
 
       // Update with API response data
       if (actualStart) {
         task.inicioReal = isoToGanttDateTime(actualStart);
-        console.log('[v0] updateTaskFromApi: set inicioReal to', task.inicioReal);
       }
       if (actualEnd) {
         task.finReal = isoToGanttDateTime(actualEnd);
-        console.log('[v0] updateTaskFromApi: set finReal to', task.finReal);
       }
       if (estado) {
         task.estado = estado;

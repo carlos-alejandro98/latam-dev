@@ -440,9 +440,16 @@ export const createFlightInfoPanelViewModel = (
   gantt?: FlightGantt | null,
   nowTimestamp: number = Date.now(),
 ): FlightInfoPanelViewModel => {
+  console.log('[v0] createFlightInfoPanelViewModel called', { ganttTasksCount: gantt?.tasks.length ?? 0 });
+  
   const ganttFlight = gantt?.flight;
   const ganttSummary = gantt?.summary;
   const timelineTasks = gantt?.tasks ?? [];
+  
+  console.log('[v0] timelineTasks with real data:', {
+    count: timelineTasks.length,
+    firstTaskWithReal: timelineTasks.find((t) => t.inicioReal || t.finReal),
+  });
 
   const numberArrival =
     flight.numberArrival ?? ganttFlight?.numberArrival ?? FALLBACK_TEXT;
