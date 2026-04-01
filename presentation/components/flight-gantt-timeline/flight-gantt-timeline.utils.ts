@@ -627,12 +627,12 @@ export const buildTimelineMarkers = (
 
   const markers: TimelineMarker[] = [
     {
-      // STD: solid blue vertical line
-      color: '#2836c9',
+      // STD: red dashed vertical line
+      color: '#c2005b',
       id: 'std',
       label: stdLabel,
       labelVariant: 'outlined',
-      lineStyle: 'solid',
+      lineStyle: 'dashed',
       minute: stdMinute,
     },
   ];
