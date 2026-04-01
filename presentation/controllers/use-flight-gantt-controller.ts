@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 
 import type { AppDispatch } from '@/store';
@@ -25,18 +25,16 @@ export const useFlightGanttController = (
   } = storeAdapter;
   const autoLoad = options?.autoLoad ?? true;
 
-  // Track the last flightId we actually dispatched a fetch for so that
-  // re-renders triggered by Redux state changes (which recreate loadFlightGantt)
-  // do not cause a second fetch for the same flight.
-  const lastFetchedFlightIdRef = useRef<string | undefined>(undefined);
-
   useEffect(() => {
     if (!flightId || !autoLoad) return;
-    if (lastFetchedFlightIdRef.current === flightId) return;
-    lastFetchedFlightIdRef.current = flightId;
-    // Dispatch the thunk directly so loadFlightGantt is not a dependency,
-    // preventing the effect from re-running on every Redux state change.
-    void dispatch(fetchFlightGantt(flightId));
+    // Dispatch the thunk and keep the returned promise so we can abort it if
+    // the flightId changes before the request completes. This prevents stale
+    // responses from a previous flight from overwriting the current flight's
+    // data in the store.
+    const promise = dispatch(fetchFlightGantt(flightId));
+    return () => {
+      promise.abort();
+    };
   }, [flightId, autoLoad, dispatch]);
 
   return {
