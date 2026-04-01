@@ -697,33 +697,49 @@ export const buildTimelineDomain = (
   const referenceDateTime = stdDateTime;
 
   // Base window: 2 hours before STA, 2 hours after STD
-  const domainStartDateTime = staDateTime
+  const baseStartDateTime = staDateTime
     ? new Date(staDateTime.getTime() - TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS)
     : new Date(nowTimestamp - 2 * TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS);
 
-  const domainEndDateTime = stdDateTime
+  const baseEndDateTime = stdDateTime
     ? new Date(stdDateTime.getTime() + TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS)
     : new Date(nowTimestamp + 2 * TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS);
 
-  // Expand if any task extends beyond the base window
+  // Get earliest and latest task timestamps
+  const earliestTaskTs = getEarliestTaskTimestamp(tasks);
   const latestTaskTs = getLatestTaskTimestamp(tasks);
-  const expandedEndDateTime = latestTaskTs && latestTaskTs > domainEndDateTime.getTime()
-    ? new Date(latestTaskTs)
-    : domainEndDateTime;
+
+  // Determine final domain bounds:
+  // - If first task is before base start, use (first task - 2hrs) as start
+  // - If last task is after base end, use (last task + 2hrs) as end
+  let finalStartDateTime = baseStartDateTime;
+  let finalEndDateTime = baseEndDateTime;
+
+  if (earliestTaskTs && earliestTaskTs < baseStartDateTime.getTime()) {
+    finalStartDateTime = new Date(
+      earliestTaskTs - TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS
+    );
+  }
+
+  if (latestTaskTs && latestTaskTs > baseEndDateTime.getTime()) {
+    finalEndDateTime = new Date(
+      latestTaskTs + TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS
+    );
+  }
 
   const safeEndDateTime =
-    expandedEndDateTime.getTime() > domainStartDateTime.getTime()
-      ? expandedEndDateTime
+    finalEndDateTime.getTime() > finalStartDateTime.getTime()
+      ? finalEndDateTime
       : new Date(
-          domainStartDateTime.getTime() +
+          finalStartDateTime.getTime() +
             4 * TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
         );
 
-  const timelineStartDateMs = getStartOfDayTimestamp(domainStartDateTime);
+  const timelineStartDateMs = getStartOfDayTimestamp(finalStartDateTime);
 
   return {
     maxMinute: getTimelineMinute(safeEndDateTime, timelineStartDateMs),
-    minMinute: getTimelineMinute(domainStartDateTime, timelineStartDateMs),
+    minMinute: getTimelineMinute(finalStartDateTime, timelineStartDateMs),
     stdMinute:
       referenceDateTime !== null
         ? getTimelineMinute(referenceDateTime, timelineStartDateMs)
