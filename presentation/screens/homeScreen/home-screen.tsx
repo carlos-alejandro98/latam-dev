@@ -33,6 +33,8 @@ import { useAuthController } from '@/presentation/controllers/use-auth-controlle
 import { useAuthSelector } from '@/presentation/adapters/redux/use-auth-selector';
 import type { AuthRole } from '@/store/slices/auth-slice';
 import { useFlightGanttController } from '@/presentation/controllers/use-flight-gantt-controller';
+import { updateGanttData } from '@/store/slices/flight-gantt-slice';
+import { container } from '@/dependencyInjection/container';
 import { CommentsDrawer } from '@/presentation/screens/homeScreen/components/comments-drawer';
 import type {
   SelectedProcess,
@@ -125,16 +127,6 @@ export const HomeScreen = () => {
       const key = cacheKey(instanceId);
       const cached = taskCacheRef.current.get(key);
 
-      // Log para diagnóstico de estado de tarea
-      console.log('[handleRowClick] Task data:', {
-        taskName: rowData.task.taskName,
-        instanceId,
-        estado: rowData.task.estado,
-        inicioReal: rowData.task.inicioReal,
-        finReal: rowData.task.finReal,
-        realRange: rowData.realRange,
-      });
-
       if (cached) {
         // Re-opening a task that was already interacted with — restore full cached state
         setSelectedProcess(cached);
@@ -161,8 +153,6 @@ export const HomeScreen = () => {
         } else if (rowData.task.inicioReal && !rowData.task.finReal) {
           resolvedStatus = 'IN_PROGRESS';
         }
-
-        console.log('[handleRowClick] Resolved status:', resolvedStatus, 'Original:', rowData.task.estado);
 
         setSelectedProcess({
           name: rowData.task.taskName,
@@ -245,7 +235,6 @@ export const HomeScreen = () => {
       }
 
       const key = cacheKey(taskInstanceId);
-      console.log('[HomeScreen] handleStartTask — INIT | instanceId:', taskInstanceId, '| time:', time, '| flightId:', selectedFlight?.flightId);
       patchTask({ instanceId: taskInstanceId, startTime: time });
       try {
         const response = await startTask(
@@ -253,7 +242,6 @@ export const HomeScreen = () => {
           time,
           selectedFlight?.std ?? null,
         );
-        console.log('[HomeScreen] handleStartTask — SUCCESS | instanceId:', taskInstanceId, '| status_anterior:', response.status_anterior, '| status_nuevo:', response.status_nuevo, '| actual_start:', response.actual_start);
         const newStatus = response.status_nuevo ?? 'IN_PROGRESS';
         setSelectedProcess((prev) => {
           const updated = prev
@@ -262,6 +250,9 @@ export const HomeScreen = () => {
           if (updated) taskCacheRef.current.set(key, updated);
           return updated;
         });
+        if (selectedFlight?.flightId) {
+          reloadGanttFromServer(selectedFlight.flightId);
+        }
         const delay = calcDelayMinutes(time, selectedProcess?.plannedStartTime);
         dispatch(
           addSessionEvent({
@@ -276,7 +267,6 @@ export const HomeScreen = () => {
           }),
         );
       } catch (err) {
-        console.error('[HomeScreen] handleStartTask — ERROR | instanceId:', taskInstanceId, '| error:', err);
         patchTask({ instanceId: taskInstanceId, startTime: undefined });
         setSelectedProcess((prev) =>
           prev ? { ...prev, taskStatus: 'error' } : prev,
@@ -292,6 +282,7 @@ export const HomeScreen = () => {
       patchTask,
       dispatch,
       calcDelayMinutes,
+      reloadGanttFromServer,
     ],
   );
 
@@ -302,7 +293,6 @@ export const HomeScreen = () => {
       }
 
       const key = cacheKey(taskInstanceId);
-      console.log('[HomeScreen] handleFinishTask — INIT | instanceId:', taskInstanceId, '| time:', time, '| flightId:', selectedFlight?.flightId);
       patchTask({ instanceId: taskInstanceId, endTime: time });
       try {
         const response = await finishTask(
@@ -310,7 +300,6 @@ export const HomeScreen = () => {
           time,
           selectedFlight?.std ?? null,
         );
-        console.log('[HomeScreen] handleFinishTask — SUCCESS | instanceId:', taskInstanceId, '| status_anterior:', response.status_anterior, '| status_nuevo:', response.status_nuevo, '| actual_end:', response.actual_end);
         const newStatus = response.status_nuevo ?? 'COMPLETED';
         setSelectedProcess((prev) => {
           const updated = prev
@@ -319,6 +308,9 @@ export const HomeScreen = () => {
           if (updated) taskCacheRef.current.set(key, updated);
           return updated;
         });
+        if (selectedFlight?.flightId) {
+          reloadGanttFromServer(selectedFlight.flightId);
+        }
         const delay = calcDelayMinutes(time, selectedProcess?.plannedEndTime);
         dispatch(
           addSessionEvent({
@@ -333,7 +325,6 @@ export const HomeScreen = () => {
           }),
         );
       } catch (err) {
-        console.error('[HomeScreen] handleFinishTask — ERROR | instanceId:', taskInstanceId, '| error:', err);
         patchTask({ instanceId: taskInstanceId, endTime: undefined });
         setSelectedProcess((prev) =>
           prev ? { ...prev, taskStatus: 'error' } : prev,
@@ -349,6 +340,7 @@ export const HomeScreen = () => {
       patchTask,
       dispatch,
       calcDelayMinutes,
+      reloadGanttFromServer,
     ],
   );
 
@@ -365,7 +357,6 @@ export const HomeScreen = () => {
       }
 
       const key = cacheKey(taskInstanceId);
-      console.log('[HomeScreen] handleUpdateTask — INIT | instanceId:', taskInstanceId, '| newStartTime:', newStartTime, '| newEndTime:', newEndTime, '| flightId:', selectedFlight?.flightId);
       patchTask({
         instanceId: taskInstanceId,
         startTime: newStartTime,
@@ -378,8 +369,10 @@ export const HomeScreen = () => {
           newEndTime || null,
           selectedFlight?.std ?? null,
         );
-        console.log('[HomeScreen] handleUpdateTask — SUCCESS | instanceId:', taskInstanceId, '| newStartTime:', newStartTime, '| newEndTime:', newEndTime);
         taskCacheRef.current.delete(key);
+        if (selectedFlight?.flightId) {
+          reloadGanttFromServer(selectedFlight.flightId);
+        }
         const frontendStatus = newEndTime
           ? 'COMPLETADA'
           : newStartTime
@@ -427,7 +420,6 @@ export const HomeScreen = () => {
           }),
         );
       } catch (err) {
-        console.error('[HomeScreen] handleUpdateTask — ERROR | instanceId:', taskInstanceId, '| error:', err);
         patchTask({
           instanceId: taskInstanceId,
           startTime: undefined,
@@ -446,7 +438,27 @@ export const HomeScreen = () => {
       dispatch,
       calcDelayMinutes,
       resolveUpdatedTimeChange,
+      reloadGanttFromServer,
     ],
+  );
+
+  /**
+   * Reloads the gantt silently from the server after a task action succeeds.
+   * Uses the same path as the SSE stream (updateGanttData) so it never
+   * triggers a loading spinner — the optimistic patch already updated the UI.
+   */
+  const reloadGanttFromServer = useCallback(
+    (flightId: string) => {
+      container.getFlightGanttUseCase
+        .execute(flightId)
+        .then((data) => {
+          dispatch(updateGanttData(data));
+        })
+        .catch(() => {
+          // Silently ignore — the optimistic update remains visible
+        });
+    },
+    [dispatch],
   );
 
   useFlightRealtimeUpdates();
