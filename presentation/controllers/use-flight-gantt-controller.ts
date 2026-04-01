@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 
+import type { AppDispatch } from '@/store';
+import { clearGanttData } from '@/store/slices/flight-gantt-slice';
 import { useFlightGanttStoreAdapter } from '../adapters/redux/flight-gantt-store-adapter';
 
 interface UseFlightGanttControllerOptions {
@@ -10,6 +13,7 @@ export const useFlightGanttController = (
   flightId?: string,
   options?: UseFlightGanttControllerOptions,
 ) => {
+  const dispatch = useDispatch<AppDispatch>();
   const storeAdapter = useFlightGanttStoreAdapter();
   const {
     gantt,
@@ -23,9 +27,12 @@ export const useFlightGanttController = (
 
   useEffect(() => {
     if (flightId && autoLoad) {
+      // Limpiar el gantt anterior antes de cargar el nuevo vuelo para evitar
+      // que las tareas del vuelo previo se muestren durante la transición.
+      dispatch(clearGanttData());
       loadFlightGantt(flightId);
     }
-  }, [autoLoad, flightId, loadFlightGantt]);
+  }, [autoLoad, dispatch, flightId, loadFlightGantt]);
 
   return {
     gantt,

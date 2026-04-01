@@ -24,14 +24,15 @@ export const useFlightInfoPanelController = (
     flightId: requestedFlightId,
   } = useFlightGanttController(flight?.flightId);
 
-  // Se usa el gantt del store siempre que haya un vuelo activo seleccionado.
-  // La responsabilidad de garantizar que el gantt corresponde al vuelo correcto
-  // recae en loadFlightGantt (carga inicial) y en el stream SSE (actualizaciones
-  // en tiempo real), ambos controlados con el mismo flightId del vuelo activo.
-  const resolvedGantt = flight ? gantt : null;
-
-  const shouldUseRequestState =
+  // Solo usamos el gantt del store si el flightId en el store coincide con el
+  // vuelo activo. Esto evita que al cambiar de vuelo se muestren tareas del
+  // vuelo anterior mientras el nuevo gantt aún está cargando, o que un vuelo
+  // sin planificación "contamine" el siguiente vuelo seleccionado.
+  const ganttBelongsToFlight =
     Boolean(flight) && requestedFlightId === flight?.flightId;
+  const resolvedGantt = ganttBelongsToFlight ? gantt : null;
+
+  const shouldUseRequestState = ganttBelongsToFlight;
 
   const viewModel = useMemo((): FlightInfoPanelViewModel | null => {
     if (!flight) {

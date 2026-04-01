@@ -124,6 +124,13 @@ export function useGanttStream(
             log(`✗ Respuesta descartada — componente desmontado (vuelo: ${flightId})`);
             return;
           }
+          // Verificación adicional: descartar si el vuelo activo ya cambió
+          // durante la petición HTTP (evita sobrescribir el gantt del vuelo nuevo
+          // con datos del vuelo anterior).
+          if (activeFlightIdRef.current !== flightId) {
+            log(`✗ Respuesta descartada — vuelo activo cambió de "${flightId}" a "${activeFlightIdRef.current ?? 'ninguno'}"`);
+            return;
+          }
           log(`✓ Gantt recibido: ${data.tasks.length} tareas | flight.flightId en respuesta: ${data.flight?.flightId ?? 'N/A'}`);
           dispatch(updateGanttData(data));
           log(`✓ updateGanttData despachado al store — la gantt debería re-renderizarse`);

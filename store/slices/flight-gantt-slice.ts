@@ -85,6 +85,16 @@ const flightGanttSlice = createSlice({
   name: 'flightGantt',
   initialState,
   reducers: {
+    /**
+     * Limpia el gantt del store al cambiar de vuelo activo, evitando que tareas
+     * del vuelo anterior se muestren durante la carga del nuevo vuelo.
+     */
+    clearGanttData: (state) => {
+      state.data = null;
+      state.error = undefined;
+      state.flightId = undefined;
+      state.loading = false;
+    },
     /** Silent update from SSE stream — does NOT trigger loading state. */
     updateGanttData: (
       state,
@@ -186,14 +196,18 @@ const flightGanttSlice = createSlice({
         if (action.error.code === 'GANTT_NOT_FOUND') {
           state.data = null;
           state.error = undefined;
+          // Mantener flightId para que useFlightInfoPanelController sepa que la
+          // petición ya terminó y no corresponde a otro vuelo anterior.
+          state.flightId = action.meta.arg;
           return;
         }
 
         state.error = action.error.message;
+        state.flightId = action.meta.arg;
       });
   },
 });
 
-export const { updateGanttData, optimisticUpdateTask } =
+export const { clearGanttData, updateGanttData, optimisticUpdateTask } =
   flightGanttSlice.actions;
 export default flightGanttSlice.reducer;
