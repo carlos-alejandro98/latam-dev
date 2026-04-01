@@ -96,14 +96,18 @@ const flightGanttSlice = createSlice({
       state.flightId = undefined;
       state.loading = true;
     },
-    /** Silent update from SSE stream — does NOT trigger loading state. */
+    /**
+     * Silent update from SSE stream.
+     * Clears loading so the timeline stops showing the spinner and renders the
+     * rows immediately without waiting for fetchFlightGantt to complete.
+     */
     updateGanttData: (
       state,
       action: import('@reduxjs/toolkit').PayloadAction<FlightGantt>,
     ) => {
       state.data = action.payload;
-      // También actualiza flightId para que resolvedGantt en el controller
-      // pase la condición de igualdad y dispare el re-render del componente.
+      state.loading = false;
+      state.error = undefined;
       if (action.payload.flight?.flightId) {
         state.flightId = action.payload.flight.flightId;
       }

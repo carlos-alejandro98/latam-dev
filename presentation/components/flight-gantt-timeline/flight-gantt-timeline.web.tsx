@@ -42,6 +42,8 @@ export type FlightGanttTimelineProps = {
   pushOutTime?: string | null;
   tatVueloMinutos?: number | null;
   tasks: FlightGanttTask[];
+  /** When true the gantt is loading — show a spinner instead of the empty state. */
+  loading?: boolean;
   onRowClick?: (rowData: TimelineTaskRowData) => void;
 };
 
@@ -111,6 +113,7 @@ export const FlightGanttTimeline = ({
   etdTime,
   tatVueloMinutos,
   tasks,
+  loading = false,
   onRowClick,
 }: FlightGanttTimelineProps): ReactNode => {
   // Stable ref so rows always call the latest onRowClick without stale closures
@@ -549,6 +552,34 @@ export const FlightGanttTimeline = ({
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
+
+  // While loading, show a spinner so the "no planning" error message doesn't
+  // flash before the stream data arrives.
+  if (loading && !rows.length) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          minHeight: 120,
+        }}
+      >
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            border: '3px solid #d9d9d9',
+            borderTopColor: '#2c31c9',
+            borderRadius: '50%',
+            animation: 'ganttSpinnerRotate 0.8s linear infinite',
+          }}
+        />
+        <style>{`@keyframes ganttSpinnerRotate { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   if (!rows.length) {
     return (
