@@ -9,7 +9,8 @@ import type {
 
 const MINUTES_PER_DAY = 1440;
 const MINUTE_IN_MS = 60000;
-const TIMELINE_WINDOW_PADDING_MINUTES = 120;
+/** Padding applied before the first task and after the last task (3 hours). */
+const TIMELINE_WINDOW_PADDING_MINUTES = 180;
 const MIN_BAR_DURATION_MINUTES = 0.5;
 const TIMELINE_MIN_WIDTH = 920;
 const PIXELS_PER_MINUTE = 9;
@@ -673,30 +674,38 @@ export const buildTimelineDomain = (
   etdDate?: string | null,
   etdTime?: string | null,
 ): TimelineDomain => {
-  const startAnchor = resolveStartAnchor(
-    tasks,
-    staDate,
-    staTime,
-    etaDate,
-    etaTime,
-    stdDate,
-    stdTime,
-    etdDate,
-    etdTime,
-  );
   const referenceDateTime = resolveReferenceDateTime(
     stdDate,
     stdTime,
     etdDate,
     etdTime,
   );
-  const endAnchor = resolveEndAnchor(tasks, nowTimestamp, referenceDateTime);
+
+  // Derive the visible window directly from the task timestamps so that ALL
+  // bars are guaranteed to be within the domain, padded by exactly 3 hours on
+  // each side.  The flight STA/STD/ETA/ETD values are only used as fallbacks
+  // when there are no task timestamps at all (e.g. before the API responds).
+  const earliestTaskTs = getEarliestTaskTimestamp(tasks);
+  const latestTaskTs   = getLatestTaskTimestamp(tasks);
+
+  const startAnchorTs =
+    earliestTaskTs ??
+    (parseDateTimeValue(staDate, staTime) ??
+      parseDateTimeValue(etaDate, etaTime) ??
+      parseDateTimeValue(stdDate, stdTime) ??
+      parseDateTimeValue(etdDate, etdTime) ??
+      new Date(nowTimestamp)
+    ).getTime();
+
+  const endAnchorTs =
+    latestTaskTs ??
+    (referenceDateTime ?? new Date(nowTimestamp)).getTime();
 
   const domainStartDateTime = new Date(
-    startAnchor.getTime() - TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
+    startAnchorTs - TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
   );
   const domainEndDateTime = new Date(
-    endAnchor.getTime() + TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
+    endAnchorTs + TIMELINE_WINDOW_PADDING_MINUTES * MINUTE_IN_MS,
   );
 
   const safeEndDateTime =
