@@ -21,18 +21,17 @@ export const useFlightInfoPanelController = (
     gantt,
     loading,
     error,
+    flightId: requestedFlightId,
   } = useFlightGanttController(flight?.flightId);
 
-  // El gantt se muestra siempre que haya un vuelo activo.
-  // La garantía de que el gantt corresponde al vuelo correcto viene de dos mecanismos:
-  // 1. clearGanttData() en useFlightGanttController limpia el store al cambiar de vuelo.
-  // 2. El stream SSE y fetchFlightGantt siempre usan el flightId activo.
-  // La validación estricta requestedFlightId === flight.flightId creaba una ventana de
-  // tiempo donde resolvedGantt era null incluso con datos válidos en el store,
-  // causando que el timeline no renderizara las barras de procesos.
+  // Se usa el gantt del store siempre que haya un vuelo activo seleccionado.
+  // La responsabilidad de garantizar que el gantt corresponde al vuelo correcto
+  // recae en loadFlightGantt (carga inicial) y en el stream SSE (actualizaciones
+  // en tiempo real), ambos controlados con el mismo flightId del vuelo activo.
   const resolvedGantt = flight ? gantt : null;
 
-  const shouldUseRequestState = Boolean(flight);
+  const shouldUseRequestState =
+    Boolean(flight) && requestedFlightId === flight?.flightId;
 
   const viewModel = useMemo((): FlightInfoPanelViewModel | null => {
     if (!flight) {

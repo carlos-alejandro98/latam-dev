@@ -85,29 +85,14 @@ const flightGanttSlice = createSlice({
   name: 'flightGantt',
   initialState,
   reducers: {
-    /**
-     * Limpia el gantt del store al cambiar de vuelo activo.
-     * Se establece loading=true para que FlightInfoPanel muestre el spinner
-     * en lugar del empty state mientras se carga el gantt del nuevo vuelo.
-     */
-    clearGanttData: (state) => {
-      state.data = null;
-      state.error = undefined;
-      state.flightId = undefined;
-      state.loading = true;
-    },
-    /**
-     * Silent update from SSE stream.
-     * Clears loading so the timeline stops showing the spinner and renders the
-     * rows immediately without waiting for fetchFlightGantt to complete.
-     */
+    /** Silent update from SSE stream — does NOT trigger loading state. */
     updateGanttData: (
       state,
       action: import('@reduxjs/toolkit').PayloadAction<FlightGantt>,
     ) => {
       state.data = action.payload;
-      state.loading = false;
-      state.error = undefined;
+      // También actualiza flightId para que resolvedGantt en el controller
+      // pase la condición de igualdad y dispare el re-render del componente.
       if (action.payload.flight?.flightId) {
         state.flightId = action.payload.flight.flightId;
       }
@@ -201,18 +186,14 @@ const flightGanttSlice = createSlice({
         if (action.error.code === 'GANTT_NOT_FOUND') {
           state.data = null;
           state.error = undefined;
-          // Mantener flightId para que useFlightInfoPanelController sepa que la
-          // petición ya terminó y no corresponde a otro vuelo anterior.
-          state.flightId = action.meta.arg;
           return;
         }
 
         state.error = action.error.message;
-        state.flightId = action.meta.arg;
       });
   },
 });
 
-export const { clearGanttData, updateGanttData, optimisticUpdateTask } =
+export const { updateGanttData, optimisticUpdateTask } =
   flightGanttSlice.actions;
 export default flightGanttSlice.reducer;

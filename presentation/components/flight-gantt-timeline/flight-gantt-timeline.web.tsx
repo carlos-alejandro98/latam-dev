@@ -42,8 +42,6 @@ export type FlightGanttTimelineProps = {
   pushOutTime?: string | null;
   tatVueloMinutos?: number | null;
   tasks: FlightGanttTask[];
-  /** When true the gantt is loading — show a spinner instead of the empty state. */
-  loading?: boolean;
   onRowClick?: (rowData: TimelineTaskRowData) => void;
 };
 
@@ -113,7 +111,6 @@ export const FlightGanttTimeline = ({
   etdTime,
   tatVueloMinutos,
   tasks,
-  loading = false,
   onRowClick,
 }: FlightGanttTimelineProps): ReactNode => {
   // Stable ref so rows always call the latest onRowClick without stale closures
@@ -211,15 +208,11 @@ export const FlightGanttTimeline = ({
     };
   }, []);
 
-  // Domain only recalculates when flight data or tasks change — NOT every second.
-  // nowTimestamp is intentionally excluded: the domain window (start/end anchors)
-  // is derived from fixed flight timestamps, so ticking every second would
-  // recompute timelineStartDateMs unnecessarily and shift all bar positions.
   const domain = useMemo(
     () =>
       buildTimelineDomain(
         tasks,
-        Date.now(),
+        nowTimestamp,
         staDate,
         staTime,
         etaDate,
@@ -229,9 +222,9 @@ export const FlightGanttTimeline = ({
         etdDate,
         etdTime,
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       tasks,
+      nowTimestamp,
       staDate,
       staTime,
       etaDate,
@@ -244,35 +237,13 @@ export const FlightGanttTimeline = ({
   );
 
   const rows = useMemo(
-    () => {
-      const builtRows = buildTimelineRows(
+    () =>
+      buildTimelineRows(
         tasks,
         domain.timelineStartDateMs,
         domain.stdMinute,
         nowTimestamp,
-      );
-      
-      console.log('[v0] Timeline rows built:', {
-        taskCount: tasks.length,
-        rowCount: builtRows.length,
-        rowsWithBars: builtRows.filter(r => r.calculatedRange || r.realRange).length,
-        firstTask: tasks[0] ?? null,
-        firstRow: builtRows[0] ? {
-          calculatedRange: builtRows[0].calculatedRange,
-          realRange: builtRows[0].realRange,
-        } : null,
-        domain: {
-          timelineStartDateMs: domain.timelineStartDateMs,
-          timelineStartDate: new Date(domain.timelineStartDateMs).toISOString(),
-          stdMinute: domain.stdMinute,
-          minMinute: domain.minMinute,
-          maxMinute: domain.maxMinute,
-        },
-        propsReceived: { staDate, staTime, etaDate, etaTime, stdDate, stdTime, etdDate, etdTime },
-      });
-      
-      return builtRows;
-    },
+      ),
     [tasks, domain.timelineStartDateMs, domain.stdMinute, nowTimestamp],
   );
 
@@ -574,34 +545,6 @@ export const FlightGanttTimeline = ({
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
-
-  // While loading, show a spinner so the "no planning" error message doesn't
-  // flash before the stream data arrives.
-  if (loading && !rows.length) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          minHeight: 120,
-        }}
-      >
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            border: '3px solid #d9d9d9',
-            borderTopColor: '#2c31c9',
-            borderRadius: '50%',
-            animation: 'ganttSpinnerRotate 0.8s linear infinite',
-          }}
-        />
-        <style>{`@keyframes ganttSpinnerRotate { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
 
   if (!rows.length) {
     return (

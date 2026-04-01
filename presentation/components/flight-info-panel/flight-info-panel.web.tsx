@@ -690,7 +690,6 @@ export const FlightInfoPanel = ({
           pushOutTime={viewModel.timeline.pushOutTime}
           tasks={viewModel.timeline.tasks}
           tatVueloMinutos={viewModel.timeline.tatVueloMinutos}
-          loading={loading}
           onRowClick={onRowClick}
         />
       </Box>
