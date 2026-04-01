@@ -1,11 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { useDispatch } from 'react-redux';
 
 import { ENV } from '@/config/environment';
-import { container } from '@/dependencyInjection/container';
 import { FlightsHttpClient } from '@/infrastructure/http/flights-http-client';
-import type { AppDispatch } from '@/store';
-import { updateGanttData } from '@/store/slices/flight-gantt-slice';
 
 const PREFIX = '[GanttStream]';
 const log = (...args: unknown[]) => { if (process.env.NODE_ENV === 'development') console.log(PREFIX, ...args); };
@@ -38,8 +34,6 @@ const RELOAD_DEBOUNCE_MS = 400;
 export function useGanttStream(
   activeFlightId: string | null | undefined,
 ): void {
-  const dispatch = useDispatch<AppDispatch>();
-
   // Ref estable para que los event handlers siempre vean el flightId más reciente
   const activeFlightIdRef = useRef<string | null | undefined>(activeFlightId);
   activeFlightIdRef.current = activeFlightId;
