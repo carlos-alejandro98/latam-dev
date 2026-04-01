@@ -65,16 +65,7 @@ const isoToGanttDateTime = (iso: string | null | undefined): FlightGantt['tasks'
     parseInt(match[5], 10),
   ] as unknown as FlightGantt['tasks'][0]['inicioReal'];
 };
- *
- * The date is derived from the task's planned/calculated dates so that times
- * which cross midnight (e.g. arrival 23:xx → departure 02:xx next day) land
- * on the correct calendar day.  Fallback is today's local date.
- *
- * Strategy:
- * 1. Extract a reference date from the task (programado or calculado).
- * 2. Build candidate dates: reference-day-1, reference-day, reference-day+1.
- * 3. Pick the candidate whose HH:mm is closest to the reference time.
- */
+
 const hhmmToGanttDateTime = (
   hhmm: string,
   task?: FlightGantt['tasks'][0],
