@@ -617,6 +617,9 @@ export const buildTimelineMarkers = (
   currentMarkerLabel?: string,
   stdMinute: number | null = null,
   stdLabel: string = 'STD',
+  /** Absolute timeline minute for the PUSH-IN/PUSH-BACK marker. When provided
+   *  this takes precedence over the tatVueloMinutos-derived position. */
+  pushInMinute?: number | null,
 ): TimelineMarker[] => {
   if (stdMinute === null) {
     return [];
@@ -624,16 +627,26 @@ export const buildTimelineMarkers = (
 
   const markers: TimelineMarker[] = [
     {
-      color: '#c2005b',
+      // STD: solid blue vertical line
+      color: '#2836c9',
       id: 'std',
       label: stdLabel,
       labelVariant: 'outlined',
-      lineStyle: 'dashed',
+      lineStyle: 'solid',
       minute: stdMinute,
     },
   ];
 
-  if (tatVueloMinutos && tatVueloMinutos > 0) {
+  // PUSH-IN: use the explicit push-back minute if provided, otherwise derive
+  // from tatVueloMinutos as a fallback.
+  const resolvedPushInMinute =
+    pushInMinute != null
+      ? pushInMinute
+      : tatVueloMinutos && tatVueloMinutos > 0
+        ? stdMinute - tatVueloMinutos
+        : null;
+
+  if (resolvedPushInMinute !== null) {
     markers.push({
       color: '#d61b5b',
       id: 'push-in',
@@ -642,7 +655,7 @@ export const buildTimelineMarkers = (
       labelTextColor: '#ffffff',
       labelVariant: 'filled',
       lineStyle: 'dashed',
-      minute: stdMinute - tatVueloMinutos,
+      minute: resolvedPushInMinute,
     });
   }
 

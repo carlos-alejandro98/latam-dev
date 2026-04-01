@@ -109,6 +109,7 @@ export const FlightGanttTimeline = ({
   stdTime,
   etdDate,
   etdTime,
+  pushOutTime,
   tatVueloMinutos,
   tasks,
   onRowClick,
@@ -413,6 +414,25 @@ export const FlightGanttTimeline = ({
   const markerReferenceTime = stdTime ?? etdTime;
   const markerReferenceLabel = stdDate && stdTime ? 'STD' : 'ETD';
 
+  // Derive the PUSH-IN marker minute from the push-back ISO timestamp.
+  // The ISO has the form "YYYY-MM-DDTHH:mm:ss" (local time) — parse its
+  // date/time parts and convert to a timeline minute relative to the domain.
+  const pushInMinute = useMemo<number | null>(() => {
+    if (!pushOutTime || !domain.timelineStartDateMs) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(pushOutTime);
+    if (!match) return null;
+    const pushDate = new Date(
+      Number(match[1]),
+      Number(match[2]) - 1,
+      Number(match[3]),
+      Number(match[4]),
+      Number(match[5]),
+      0,
+      0,
+    );
+    return (pushDate.getTime() - domain.timelineStartDateMs) / 60000;
+  }, [pushOutTime, domain.timelineStartDateMs]);
+
   const currentRelativeMinute = useMemo(
     () =>
       getCurrentRelativeMinute(
@@ -434,6 +454,7 @@ export const FlightGanttTimeline = ({
         currentMarkerLabel,
         domain.stdMinute,
         markerReferenceLabel,
+        pushInMinute,
       ),
     [
       tatVueloMinutos,
@@ -441,6 +462,7 @@ export const FlightGanttTimeline = ({
       currentMarkerLabel,
       domain.stdMinute,
       markerReferenceLabel,
+      pushInMinute,
     ],
   );
   const ticks = useMemo(
