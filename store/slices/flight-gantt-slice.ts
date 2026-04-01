@@ -183,12 +183,15 @@ const flightGanttSlice = createSlice({
           return;
         }
         state.loading = false;
+        // Always stamp the flightId so shouldUseRequestState stays correct
+        // for the next flight — otherwise it remains undefined and the loading
+        // / error state is never exposed to the UI.
+        state.flightId = action.meta.arg;
         if (action.error.code === 'GANTT_NOT_FOUND') {
           state.data = null;
           state.error = undefined;
           return;
         }
-
         state.error = action.error.message;
       });
   },
