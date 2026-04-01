@@ -244,13 +244,40 @@ export const FlightGanttTimeline = ({
   );
 
   const rows = useMemo(
-    () =>
-      buildTimelineRows(
+    () => {
+      const builtRows = buildTimelineRows(
         tasks,
         domain.timelineStartDateMs,
         domain.stdMinute,
         nowTimestamp,
-      ),
+      );
+      
+      console.log('[v0] Timeline rows built:', {
+        taskCount: tasks.length,
+        rowCount: builtRows.length,
+        rowsWithBars: builtRows.filter(r => r.calculatedRange || r.realRange).length,
+        firstTask: tasks[0] ? {
+          taskName: tasks[0].taskName,
+          inicioProgramado: tasks[0].inicioProgramado,
+          finProgramado: tasks[0].finProgramado,
+          inicioReal: tasks[0].inicioReal,
+          finReal: tasks[0].finReal,
+          tiempoRelativoInicio: tasks[0].tiempoRelativoInicio,
+        } : null,
+        firstRow: builtRows[0] ? {
+          calculatedRange: builtRows[0].calculatedRange,
+          realRange: builtRows[0].realRange,
+        } : null,
+        domain: {
+          timelineStartDateMs: domain.timelineStartDateMs,
+          stdMinute: domain.stdMinute,
+          minMinute: domain.minMinute,
+          maxMinute: domain.maxMinute,
+        },
+      });
+      
+      return builtRows;
+    },
     [tasks, domain.timelineStartDateMs, domain.stdMinute, nowTimestamp],
   );
 
