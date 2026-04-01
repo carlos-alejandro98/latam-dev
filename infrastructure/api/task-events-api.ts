@@ -97,21 +97,24 @@ const isValidation422 = (error: unknown): boolean => {
 
 const log422Details = (scope: string, error: unknown): void => {
   if (!axios.isAxiosError(error)) {
-    console.error(`[TaskEventsAPI] ${scope} falló`, error);
+    console.error(`[v0] ${scope} error (non-axios):`, error);
     return;
   }
 
   const responseData = tryParseJson(error.response?.data);
-  console.error(
-    `[TaskEventsAPI] ${scope} respondió 422`,
-    {
-      status: error.response?.status,
-      url: error.config?.url,
-      method: error.config?.method,
-      requestBody: tryParseJson(error.config?.data),
-      responseData,
-    },
-  );
+  const requestBody = tryParseJson(error.config?.data);
+
+  console.error(`[v0] ${scope} FAILED — HTTP ${String(error.response?.status ?? '?')}`, {
+    url: error.config?.url,
+    method: error.config?.method?.toUpperCase(),
+    requestBody,
+    responseStatus: error.response?.status,
+    responseData,
+    validationErrors: (responseData as Record<string, unknown>)?.detail
+      ?? (responseData as Record<string, unknown>)?.errors
+      ?? (responseData as Record<string, unknown>)?.message
+      ?? responseData,
+  });
 };
 
 export interface UpdateTaskTimesResponse {
@@ -132,51 +135,28 @@ export const startTask = async (
 ): Promise<TaskEventResponse> => {
   const timestamp = buildIso(time, stdIso);
 
-  const bodySnake = {
-    task_instance_id: taskInstanceId,
+  const body = {
     actual_start: timestamp,
-    started_by: 'operador',
-    notas: 'Inicio manual por operador',
   };
 
+  console.log('[v0] startTask request:', {
+    url: `/api/v1/tasks/${taskInstanceId}/start`,
+    body,
+    time,
+    stdIso,
+    timestamp,
+  });
+
   try {
-    return await flightsHttpPost<TaskEventResponse>(
+    const result = await flightsHttpPost<TaskEventResponse>(
       `/api/v1/tasks/${taskInstanceId}/start`,
-      bodySnake,
+      body,
     );
+    console.log('[v0] startTask success:', result);
+    return result;
   } catch (error) {
-    if (!isValidation422(error)) {
-      throw error;
-    }
-
-    log422Details('startTask (snake_case)', error);
-
-    // Fallback 1: mismo endpoint con camelCase
-    const bodyCamel = {
-      taskInstanceId,
-      actualStart: timestamp,
-      startedBy: 'operador',
-      notes: 'Inicio manual por operador',
-    };
-
-    try {
-      return await flightsHttpPost<TaskEventResponse>(
-        `/api/v1/tasks/${taskInstanceId}/start`,
-        bodyCamel,
-      );
-    } catch (camelError) {
-      if (!isValidation422(camelError)) {
-        throw camelError;
-      }
-
-      log422Details('startTask (camelCase)', camelError);
-
-      // Fallback 2: endpoint alternativo de turnarounds
-      return flightsHttpPost<TaskEventResponse>(
-        `/api/v1/turnarounds/tasks/${taskInstanceId}/start`,
-        bodyCamel,
-      );
-    }
+    log422Details('startTask', error);
+    throw error;
   }
 };
 
@@ -190,58 +170,34 @@ export const finishTask = async (
 ): Promise<TaskEventResponse> => {
   const timestamp = buildIso(time, stdIso);
 
-  const bodySnake = {
-    task_instance_id: taskInstanceId,
+  const body = {
     actual_end: timestamp,
-    finished_by: 'operador',
-    notas: 'Tarea completada sin novedades',
   };
 
+  console.log('[v0] finishTask request:', {
+    url: `/api/v1/tasks/${taskInstanceId}/finish`,
+    body,
+    time,
+    stdIso,
+    timestamp,
+  });
+
   try {
-    return await flightsHttpPost<TaskEventResponse>(
+    const result = await flightsHttpPost<TaskEventResponse>(
       `/api/v1/tasks/${taskInstanceId}/finish`,
-      bodySnake,
+      body,
     );
+    console.log('[v0] finishTask success:', result);
+    return result;
   } catch (error) {
-    if (!isValidation422(error)) {
-      throw error;
-    }
-
-    log422Details('finishTask (snake_case)', error);
-
-    // Fallback 1: mismo endpoint con camelCase
-    const bodyCamel = {
-      taskInstanceId,
-      actualEnd: timestamp,
-      finishedBy: 'operador',
-      notes: 'Tarea completada sin novedades',
-    };
-
-    try {
-      return await flightsHttpPost<TaskEventResponse>(
-        `/api/v1/tasks/${taskInstanceId}/finish`,
-        bodyCamel,
-      );
-    } catch (camelError) {
-      if (!isValidation422(camelError)) {
-        throw camelError;
-      }
-
-      log422Details('finishTask (camelCase)', camelError);
-
-      // Fallback 2: endpoint alternativo de turnarounds
-      return flightsHttpPost<TaskEventResponse>(
-        `/api/v1/turnarounds/tasks/${taskInstanceId}/finish`,
-        bodyCamel,
-      );
-    }
+    log422Details('finishTask', error);
+    throw error;
   }
 };
 
 /**
  * Updates start and/or end times of a task (Actualizar button).
  * PATCH /api/v1/tasks/{taskInstanceId}/times
- * Body: { actualStart, actualEnd, updatedBy }
  */
 export const updateTaskTimes = async (
   taskInstanceId: string,
@@ -249,51 +205,29 @@ export const updateTaskTimes = async (
   endTime: string | null,
   stdIso: string | null,
 ): Promise<UpdateTaskTimesResponse> => {
-  const bodyCamel: Record<string, string | null> = {
-    updatedBy: 'operador',
-    actualStart: startTime ? buildIso(startTime, stdIso) : null,
-    actualEnd:   endTime   ? buildIso(endTime,   stdIso) : null,
+  const body: Record<string, string | null> = {
+    actual_start: startTime ? buildIso(startTime, stdIso) : null,
+    actual_end:   endTime   ? buildIso(endTime,   stdIso) : null,
   };
+
+  console.log('[v0] updateTaskTimes request:', {
+    url: `/api/v1/tasks/${taskInstanceId}/times`,
+    body,
+    startTime,
+    endTime,
+    stdIso,
+  });
 
   try {
     const response = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
       `/api/v1/tasks/${taskInstanceId}/times`,
-      bodyCamel,
+      body,
     );
+    console.log('[v0] updateTaskTimes success:', response.data);
     return response.data;
   } catch (error) {
-    if (!isValidation422(error)) {
-      throw error;
-    }
-
-    log422Details('updateTaskTimes (camelCase)', error);
-
-    const bodySnake: Record<string, string | null> = {
-      updated_by: 'operador',
-      actual_start: startTime ? buildIso(startTime, stdIso) : null,
-      actual_end: endTime ? buildIso(endTime, stdIso) : null,
-      task_instance_id: taskInstanceId,
-    };
-
-    try {
-      const snakeResponse = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
-        `/api/v1/tasks/${taskInstanceId}/times`,
-        bodySnake,
-      );
-      return snakeResponse.data;
-    } catch (snakeError) {
-      if (!isValidation422(snakeError)) {
-        throw snakeError;
-      }
-
-      log422Details('updateTaskTimes (snake_case)', snakeError);
-
-      const turnaroundResponse = await FlightsHttpClient.patch<UpdateTaskTimesResponse>(
-        `/api/v1/turnarounds/tasks/${taskInstanceId}/times`,
-        bodyCamel,
-      );
-      return turnaroundResponse.data;
-    }
+    log422Details('updateTaskTimes', error);
+    throw error;
   }
 };
 
