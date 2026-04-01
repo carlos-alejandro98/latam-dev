@@ -581,7 +581,7 @@ export const buildTimelineRows = (
   stdMinute: number | null,
   nowTimestamp: number = Date.now(),
 ): TimelineTaskRowData[] => {
-  return tasks.map((task) => {
+  const rows = tasks.map((task) => {
     const calculatedRange = getCalculatedRange(
       task,
       timelineStartDateMs,
@@ -602,6 +602,34 @@ export const buildTimelineRows = (
       task,
     };
   });
+
+  // Diagnostic: log first task details to identify why bars are invisible
+  if (tasks.length > 0) {
+    const first = tasks[0];
+    const firstRow = rows[0];
+    console.log('[v0] buildTimelineRows diagnostic:', {
+      timelineStartDate: new Date(timelineStartDateMs).toISOString(),
+      stdMinute,
+      totalTasks: tasks.length,
+      rowsWithBars: rows.filter(r => r.calculatedRange || r.realRange).length,
+      firstTask: {
+        taskName: first.taskName,
+        inicioProgramado: first.inicioProgramado,
+        finProgramado: first.finProgramado,
+        inicioReal: first.inicioReal,
+        finReal: first.finReal,
+        tiempoRelativoInicio: first.tiempoRelativoInicio,
+        tiempoRelativoFin: first.tiempoRelativoFin,
+        duracionPlanificada: first.duracionPlanificada,
+      },
+      firstRow: {
+        calculatedRange: firstRow.calculatedRange,
+        realRange: firstRow.realRange,
+      },
+    });
+  }
+
+  return rows;
 };
 
 export const buildTimelineMarkers = (

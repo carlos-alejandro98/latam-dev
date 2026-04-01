@@ -127,24 +127,22 @@ export interface UpdateTaskTimesResponse {
 
 /**
  * Starts a task via POST /api/v1/tasks/{taskInstanceId}/start
+ * Body matches Postman: { task_instance_id, started_by, notas }
  */
 export const startTask = async (
   taskInstanceId: string,
   time: string,
   stdIso: string | null,
 ): Promise<TaskEventResponse> => {
-  const timestamp = buildIso(time, stdIso);
-
   const body = {
-    actual_start: timestamp,
+    task_instance_id: taskInstanceId,
+    started_by: 'operador',
+    notas: 'Inicio manual por operador',
   };
 
   console.log('[v0] startTask request:', {
     url: `/api/v1/tasks/${taskInstanceId}/start`,
     body,
-    time,
-    stdIso,
-    timestamp,
   });
 
   try {
@@ -162,24 +160,22 @@ export const startTask = async (
 
 /**
  * Finishes a task via POST /api/v1/tasks/{taskInstanceId}/finish
+ * Body matches Postman pattern: { task_instance_id, finished_by, notas }
  */
 export const finishTask = async (
   taskInstanceId: string,
   time: string,
   stdIso: string | null,
 ): Promise<TaskEventResponse> => {
-  const timestamp = buildIso(time, stdIso);
-
   const body = {
-    actual_end: timestamp,
+    task_instance_id: taskInstanceId,
+    finished_by: 'operador',
+    notas: 'Tarea completada sin novedades',
   };
 
   console.log('[v0] finishTask request:', {
     url: `/api/v1/tasks/${taskInstanceId}/finish`,
     body,
-    time,
-    stdIso,
-    timestamp,
   });
 
   try {
